@@ -1,0 +1,76 @@
+# ============================
+# DEPENDENCIES
+# ============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ============================
+# ENVIRONMENT VARIABLES
+# ============================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# ============================
+# BUILD OUTPUTS
+# ============================
+dist/
+build/
+.next/
+out/
+.vercel
+
+# ============================
+# BACKEND (Node.js/Express)
+# ============================
+backend/node_modules/
+backend/.env
+backend/package-lock.json
+
+# ============================
+# FRONTEND (Next.js)
+# ============================
+frontend/node_modules/
+frontend/.env.local
+frontend/.next/
+frontend/package-lock.json
+
+# ============================
+# DATABASE
+# ============================
+*.db
+*.sqlite
+prisma/*.db
+prisma/*.sqlite
+
+# ============================
+# OS FILES
+# ============================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# ============================
+# IDE FILES
+# ============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================
+# MISC
+# ============================
+*.pem
+*.p12
+*.key
+*.crt
