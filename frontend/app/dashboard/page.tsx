@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const userPlan = session.user?.plan || "free";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] text-white p-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] text-white p-8 pt-20">
       <div className="max-w-6xl mx-auto">
         {/* Header - Without Logout Button */}
         <div className="flex justify-between items-center mb-8">
