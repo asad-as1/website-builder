@@ -1,13 +1,23 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Create transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
+// Send verification email
 const sendVerificationEmail = async (email, token) => {
-const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;  
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const verifyUrl = `${frontendUrl}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
+
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'Genetix <onboarding@resend.dev>',
-      to: [email],
+    const info = await transporter.sendMail({
+      from: `"Genetix" <${process.env.EMAIL_USER}>`,
+      to: email,
       subject: 'Verify your email - Genetix',
       html: `
         <!DOCTYPE html>
@@ -15,7 +25,7 @@ const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}&email
           <head>
             <style>
               body { font-family: Arial, sans-serif; background: #0a0a0f; color: white; padding: 40px; }
-              .container { max-width: 500px; margin: 0 auto; background: rgba(255,255,255,0.05); padding: 30px; border-radius: 16px; }
+              .container { max-width: 500px; margin: 0 auto; background: #1a1a2e; padding: 30px; border-radius: 16px; }
               .btn { display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #00d4ff, #7c3aed); color: white; text-decoration: none; border-radius: 8px; }
               .footer { color: #6b7280; font-size: 12px; margin-top: 20px; }
             </style>
@@ -33,14 +43,9 @@ const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}&email
       `,
     });
 
-    if (error) {
-      console.error('Resend error:', error);
-      return false;
-    }
-
     return true;
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('❌ Email send error:', error.message);
     return false;
   }
 };

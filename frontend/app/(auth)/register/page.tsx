@@ -5,8 +5,9 @@ import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import axios from 'axios';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Mail, CheckCircle, ArrowRight } from 'lucide-react';
 
+// Google SVG Icon
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 48 48">
     <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
@@ -25,7 +26,9 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -48,7 +51,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
+    setIsLoading(true);
 
     try {
       const response = await axios.post('http://localhost:5000/api/auth/register', {
@@ -57,10 +60,15 @@ export default function RegisterPage() {
         name,
       });
 
-      setSuccess('Registration successful! Please verify your email.');
-      setTimeout(() => router.push('/login'), 3000);
+      setRegisteredEmail(email);
+      setIsSuccess(true);
+      setEmail('');
+      setPassword('');
+      setName('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Something went wrong');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -68,6 +76,74 @@ export default function RegisterPage() {
     signIn('google', { callbackUrl: '/dashboard' });
   };
 
+  // ✅ Success Screen
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] px-4">
+        <div className="glass p-8 rounded-2xl w-full max-w-md text-center">
+          {/* Success Icon */}
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center">
+            <CheckCircle className="w-10 h-10 text-green-400" />
+          </div>
+          
+          <h1 className="text-2xl font-bold text-white mb-2">
+            Registration Successful! 🎉
+          </h1>
+          
+          <p className="text-gray-400 mb-6">
+            We've sent a verification email to
+          </p>
+          
+          <div className="flex items-center justify-center gap-2 bg-white/5 rounded-lg px-4 py-2 mb-6">
+            <Mail className="w-4 h-4 text-cyan-400" />
+            <span className="text-white font-medium">{registeredEmail}</span>
+          </div>
+          
+          <div className="space-y-4 text-left">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-cyan-400 text-sm font-bold">1</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-300">Open your email inbox</p>
+                <p className="text-xs text-gray-500">Check the email we just sent you</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-cyan-400 text-sm font-bold">2</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-300">Click the verification link</p>
+                <p className="text-xs text-gray-500">It will verify your email address</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-amber-400 text-sm font-bold">!</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-300">Check your spam folder</p>
+                <p className="text-xs text-amber-400">If you don't see the email, check spam</p>
+              </div>
+            </div>
+          </div>
+          
+          <button
+            onClick={() => router.push('/login')}
+            className="w-full mt-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg font-semibold hover:scale-105 transition flex items-center justify-center gap-2"
+          >
+            Go to Login
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Register Form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] px-4">
       <div className="glass p-8 rounded-2xl w-full max-w-md">
@@ -128,24 +204,22 @@ export default function RegisterPage() {
             </div>
           </div>
           
-          {/* Error & Success Messages */}
+          {/* Error Message */}
           {error && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-sm text-center">{error}</p>
-            </div>
-          )}
-          {success && (
-            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <p className="text-green-400 text-sm text-center">{success}</p>
             </div>
           )}
           
           {/* Register Button */}
           <button
             type="submit"
-            className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg font-semibold hover:scale-105 transition"
+            disabled={isLoading}
+            className={`w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg font-semibold hover:scale-105 transition ${
+              isLoading ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
           >
-            Register
+            {isLoading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
 
