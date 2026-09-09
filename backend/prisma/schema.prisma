@@ -8,47 +8,63 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String?   // null for Google users
-  name          String?
-  avatar        String?   // Google profile pic
-  
+  id       String  @id @default(cuid())
+  email    String  @unique
+  password String? // null for Google users
+  name     String?
+  avatar   String? // Google profile pic
+
   // Google OAuth fields
-  googleId      String?   @unique // Google ka sub ID
-  
+  googleId String? @unique // Google ka sub ID
+
   // Email verification
-  emailVerified Boolean   @default(false)
-  verifyToken   String?   // Email verification ke liye
+  emailVerified      Boolean   @default(false)
+  verifyToken        String? // Email verification ke liye
   verifyTokenExpires DateTime? // Token expiry
-  
+
   // Account status
-  isActive      Boolean   @default(true)
-  deletedAt     DateTime?
-  
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+
   // Subscription
-  plan          String    @default("free")
-  apiUsage      Int       @default(0)
-  usageResetAt  DateTime  @default(now())
-  
+  plan         String   @default("free")
+  apiUsage     Int      @default(0)
+  usageResetAt DateTime @default(now())
+  previewUsage Int      @default(0)
+  previewResetAt DateTime @default(now())
+
   // Timestamps
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  projects      Project[]
+  projects        Project[]
+  projectVersions ProjectVersion[]
 }
 
 model Project {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  prompt     String           @db.Text
+  files      Json? // Array of { path, content }
+  zipUrl     String?
+  previewUrl String?
+  framework  String           @default("nextjs")
+  status     String           @default("draft")
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  versions   ProjectVersion[]
+}
+
+model ProjectVersion {
   id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  files     Json
+  message   String?
+  createdAt DateTime @default(now())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  prompt    String?
-  template  String   @default("custom")
-  blocks    Json?    
-  jsonConfig Json?   
-  status    String   @default("draft")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }

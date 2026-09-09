@@ -36,9 +36,10 @@ const handler = NextAuth({
           }
 
           throw new Error(data.error || "Invalid credentials");
-        } catch (error: any) {
-          console.error("❌ NextAuth - Error:", error.message);
-          throw new Error(error.message || "Invalid credentials");
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Invalid credentials";
+          console.error("❌ NextAuth - Error:", message);
+          throw new Error(message);
         }
       }
     }),

@@ -12,14 +12,20 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@e2b/code-interpreter": "^2.7.2",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.19.3",
+    "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "groq-sdk": "^1.6.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^9.1.1",
-    "prisma": "^6.19.3"
+    "openai": "^7.9.0",
+    "prisma": "^6.19.3",
+    "razorpay": "^2.9.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

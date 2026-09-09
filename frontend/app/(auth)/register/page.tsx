@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { Eye, EyeOff, Mail, CheckCircle, ArrowRight } from 'lucide-react';
 
 // Google SVG Icon
@@ -54,7 +54,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/register', {
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
         email,
         password,
         name,
@@ -65,8 +65,9 @@ export default function RegisterPage() {
       setEmail('');
       setPassword('');
       setName('');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Something went wrong');
+    } catch (err) {
+      const axiosError = err as AxiosError<{ error?: string }>;
+      setError(axiosError.response?.data?.error || 'Something went wrong');
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +92,7 @@ export default function RegisterPage() {
           </h1>
           
           <p className="text-gray-400 mb-6">
-            We've sent a verification email to
+            We&apos;ve sent a verification email to
           </p>
           
           <div className="flex items-center justify-center gap-2 bg-white/5 rounded-lg px-4 py-2 mb-6">
@@ -126,7 +127,7 @@ export default function RegisterPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-300">Check your spam folder</p>
-                <p className="text-xs text-amber-400">If you don't see the email, check spam</p>
+                <p className="text-xs text-amber-400">If you don&apos;t see the email, check spam</p>
               </div>
             </div>
           </div>
