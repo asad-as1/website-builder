@@ -12,6 +12,7 @@ export default function ProjectsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [deleting, setDeleting] = useState("");
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
   useEffect(() => {
@@ -23,20 +24,41 @@ export default function ProjectsPage() {
   }, [apiUrl, router, session?.user.accessToken, status]);
 
   if (!session) return null;
+  const deleteProject = async (projectId: string) => {
+    if (!window.confirm("Delete this project and its version history?")) return;
+    setDeleting(projectId);
+    const response = await fetch(`${apiUrl}/ai/projects/${projectId}`, { method: "DELETE", headers: { Authorization: "Bearer " + session.user.accessToken } });
+    if (response.ok) setProjects((current) => current.filter((project) => project.id !== projectId));
+    setDeleting("");
+  };
   return (
     <main className="min-h-screen bg-[#0a0a0f] px-6 pb-16 pt-24 text-white">
       <div className="mx-auto max-w-6xl">
         <h1 className="text-3xl font-bold">Your Projects</h1>
         <p className="mt-2 text-gray-400">Open and continue editing your generated websites.</p>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
+        {projects.length === 0 ? (
+          <section className="mt-10 overflow-hidden rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 via-purple-500/10 to-white/5 p-10 text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-cyan-400 to-purple-600 text-4xl">✦</div>
+            <h2 className="mt-6 text-2xl font-bold">Build your first website</h2>
+            <p className="mx-auto mt-3 max-w-lg text-gray-400">Your workspace is ready. Describe your idea and Genetix will turn it into a working website you can edit and preview.</p>
+            <Link href="/dashboard" className="mt-7 inline-flex rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-3 font-semibold">Start building</Link>
+          </section>
+        ) : <div className="mt-8 grid gap-4 md:grid-cols-2">
           {projects.map((project) => (
-            <Link key={project.id} href={`/project/${slug(project.name)}`} className="rounded-2xl border border-white/10 bg-white/5 p-5 hover:border-cyan-400/50">
-              <h2 className="font-semibold text-cyan-300">{project.name}</h2>
-              <p className="mt-2 line-clamp-2 text-sm text-gray-400">{project.prompt}</p>
-              <p className="mt-4 text-xs text-gray-500">{project.status}</p>
-            </Link>
+            <article key={project.id} className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:border-cyan-400/50">
+              <Link href={`/project/${slug(project.name)}`} className="block">
+                <h2 className="font-semibold text-cyan-300">{project.name}</h2>
+                <p className="mt-2 line-clamp-2 text-sm text-gray-400">{project.prompt}</p>
+                <p className="mt-4 text-xs text-gray-500">{project.status}</p>
+              </Link>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href={`/project/${slug(project.name)}`} className="rounded-lg bg-cyan-500/20 px-4 py-2 text-sm font-medium text-cyan-300 hover:bg-cyan-500/30">Preview frontend</Link>
+                <Link href={`/editor/${slug(project.name)}`} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/10">Edit project</Link>
+                <button onClick={() => deleteProject(project.id)} disabled={deleting === project.id} className="rounded-lg border border-red-500/30 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-500/10">{deleting === project.id ? "Deleting..." : "Delete"}</button>
+              </div>
+            </article>
           ))}
-        </div>
+        </div>}
       </div>
     </main>
   );

@@ -1,6 +1,6 @@
 const providers = require('./providers');
 const { checkRateLimit, incrementUsage } = require('./rateLimiter');
-const prisma = require('../../shared/prisma/prisma.client');
+const db = require('../../shared/mongodb/mongodb.client');
 
 // Build prompt
 const buildPrompt = (userPrompt) => {
@@ -126,7 +126,7 @@ const generateWebsite = async (userId, userPrompt) => {
 
 // Save project
 const saveProject = async (userId, name, prompt, files) => {
-  const project = await prisma.project.create({
+  const project = await db.project.create({
     data: {
       userId,
       name: name || prompt.substring(0, 50),
@@ -137,7 +137,7 @@ const saveProject = async (userId, name, prompt, files) => {
     include: { versions: true }
   });
 
-  await prisma.projectVersion.create({
+  await db.projectVersion.create({
     data: {
       projectId: project.id,
       userId,
@@ -150,7 +150,7 @@ const saveProject = async (userId, name, prompt, files) => {
 };
 
 const getProject = async (userId, projectId) => {
-  const project = await prisma.project.findFirst({
+  const project = await db.project.findFirst({
     where: { id: projectId, userId },
     include: { versions: { orderBy: { createdAt: 'desc' } } }
   });
@@ -165,7 +165,7 @@ const projectSlug = (name) => name
   .replace(/^-+|-+$/g, '') || 'project';
 
 const getProjectBySlug = async (userId, slug) => {
-  const projects = await prisma.project.findMany({
+  const projects = await db.project.findMany({
     where: { userId },
     include: { versions: { orderBy: { createdAt: 'desc' } } },
     orderBy: { createdAt: 'desc' }
@@ -175,12 +175,25 @@ const getProjectBySlug = async (userId, slug) => {
   return project;
 };
 
+const deleteProject = async (userId, projectId) => {
+  const project = await db.project.findFirst({ where: { id: projectId, userId } });
+  if (!project) throw new Error('Project not found');
+  await db.projectVersion.deleteMany({ where: { projectId, userId } });
+  await db.project.delete({ where: { id: projectId } });
+};
+
+const deleteProjectVersion = async (userId, projectId, versionId) => {
+  const version = await db.projectVersion.findFirst({ where: { id: versionId, projectId, userId } });
+  if (!version) throw new Error('Version not found');
+  await db.projectVersion.delete({ where: { id: versionId } });
+};
+
 const updateProjectFiles = async (userId, projectId, files, message) => {
-  const project = await prisma.project.findFirst({ where: { id: projectId, userId } });
+  const project = await db.project.findFirst({ where: { id: projectId, userId } });
   if (!project) throw new Error('Project not found');
   if (!Array.isArray(files) || files.length === 0) throw new Error('Files are required');
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await db.$transaction(async (tx) => {
     const result = await tx.project.update({
       where: { id: projectId },
       data: { files, updatedAt: new Date() }
@@ -194,7 +207,7 @@ const updateProjectFiles = async (userId, projectId, files, message) => {
 };
 
 const rollbackProject = async (userId, projectId, versionId) => {
-  const version = await prisma.projectVersion.findFirst({
+  const version = await db.projectVersion.findFirst({
     where: { id: versionId, projectId, userId }
   });
   if (!version) throw new Error('Version not found');
@@ -202,7 +215,7 @@ const rollbackProject = async (userId, projectId, versionId) => {
 };
 
 const editProject = async (userId, projectId, instruction, selectedPaths) => {
-  const project = await prisma.project.findFirst({ where: { id: projectId, userId } });
+  const project = await db.project.findFirst({ where: { id: projectId, userId } });
   if (!project) throw new Error('Project not found');
   if (!instruction || instruction.trim().length < 5) throw new Error('Edit instruction is too short');
 
@@ -244,6 +257,8 @@ module.exports = {
   saveProject,
   getProject,
   getProjectBySlug,
+  deleteProject,
+  deleteProjectVersion,
   updateProjectFiles,
   rollbackProject,
   editProject

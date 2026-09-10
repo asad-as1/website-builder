@@ -1,30 +1,22 @@
-const prisma = require('../../shared/prisma/prisma.client');
+const db = require('../../shared/mongodb/mongodb.client');
 
 const checkRateLimit = async (userId) => {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
-    select: { plan: true, apiUsage: true, usageResetAt: true }
+    select: { apiUsage: true, usageResetAt: true }
   });
 
   if (!user) {
     throw new Error('User not found');
   }
 
-  const limits = {
-    free: 50,
-    starter: 500,
-    growth: 1000,
-    pro: 1500,
-    business: 5000,
-    scale: 15000
-  };
-  const limit = limits[user.plan] || limits.free;
+  const limit = 50;
   const now = new Date();
   const resetDate = user.usageResetAt || new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
   // Reset usage if date passed
   if (now > resetDate) {
-    await prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: {
         apiUsage: 0,
@@ -49,31 +41,24 @@ const checkRateLimit = async (userId) => {
 };
 
 const incrementUsage = async (userId) => {
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: { apiUsage: { increment: 1 } }
   });
 };
 
-const previewLimits = {
-  free: 3,
-  starter: 25,
-  growth: 75,
-  pro: 150,
-  business: 300,
-  scale: 1000
-};
+const previewLimits = { free: 3 };
 
 const checkPreviewLimit = async (userId) => {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
-    select: { plan: true, previewUsage: true, previewResetAt: true }
+    select: { previewUsage: true, previewResetAt: true }
   });
   if (!user) throw new Error('User not found');
-  const limit = previewLimits[user.plan] || previewLimits.free;
+  const limit = previewLimits.free;
   const now = new Date();
   if (now > user.previewResetAt) {
-    await prisma.user.update({
+    await db.user.update({
       where: { id: userId },
       data: { previewUsage: 0, previewResetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000) }
     });
@@ -88,7 +73,7 @@ const checkPreviewLimit = async (userId) => {
 };
 
 const incrementPreviewUsage = async (userId) => {
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: { previewUsage: { increment: 1 } }
   });

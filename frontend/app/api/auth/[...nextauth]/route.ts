@@ -29,7 +29,7 @@ const handler = NextAuth({
               email: data.user.email,
               name: data.user.name || "User",
               token: data.token,
-              plan: data.user.plan || "free",
+              role: data.user.role || "user",
               image: data.user.avatar || null,
               provider: "credentials"
             };
@@ -81,7 +81,7 @@ const handler = NextAuth({
         // ✅ Store user data from backend
         user.id = data.user.id;
         user.token = data.token;
-        user.plan = data.user.plan || "free";
+        user.role = data.user.role || "user";
         user.image = data.user.avatar || null; // ✅ Avatar set karo
         user.name = data.user.name || user.name;
         user.provider = "google";
@@ -93,11 +93,14 @@ const handler = NextAuth({
         return false;
       }
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      if (trigger === "update" && session?.role) {
+        token.role = session.role;
+      }
       if (user) {
         token.id = user.id;
         token.accessToken = user.token;
-        token.plan = user.plan;
+        token.role = user.role;
         token.image = user.image || null; // ✅ Image store karo
         token.name = user.name;
         token.provider = user.provider;
@@ -108,7 +111,7 @@ const handler = NextAuth({
       if (token) {
         session.user.id = token.id as string;
         session.user.accessToken = token.accessToken as string;
-        session.user.plan = token.plan as string;
+        session.user.role = token.role as string;
         session.user.image = token.image as string || null; 
         session.user.name = token.name as string;
         session.user.provider = token.provider as string;

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { Sandbox } = require('@e2b/code-interpreter');
 const { authenticate } = require('../auth/auth.middleware');
-const prisma = require('../../shared/prisma/prisma.client');
+const db = require('../../shared/mongodb/mongodb.client');
 const path = require('path');
 const { checkPreviewLimit, incrementPreviewUsage } = require('../ai/rateLimiter');
 
@@ -22,7 +22,7 @@ router.post('/:projectId', authenticate, async (req, res) => {
     }
     const previewLimit = await checkPreviewLimit(req.userId);
     if (!previewLimit.allowed) return res.status(429).json({ error: previewLimit.message });
-    const project = await prisma.project.findFirst({
+    const project = await db.project.findFirst({
       where: { id: req.params.projectId, userId: req.userId },
       select: { files: true },
     });

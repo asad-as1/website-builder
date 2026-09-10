@@ -27,6 +27,7 @@ export default function EditorPage() {
   const [rightWidth, setRightWidth] = useState(240);
   const [editorHeight, setEditorHeight] = useState(62);
   const [resizing, setResizing] = useState<"left" | "right" | "height" | null>(null);
+  const [deletingVersion, setDeletingVersion] = useState("");
 
   useEffect(() => {
     if (!resizing) return;
@@ -185,6 +186,24 @@ export default function EditorPage() {
     }
   };
 
+  const deleteVersion = async (versionId: string) => {
+    if (!project || !apiUrl || !session?.user.accessToken || !window.confirm("Delete this version?")) return;
+    setDeletingVersion(versionId);
+    try {
+      const response = await fetch(`${apiUrl}/ai/projects/${project.id}/versions/${versionId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.user.accessToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Version deletion failed");
+      setProject((current) => current ? { ...current, versions: current.versions.filter((version) => version.id !== versionId) } : current);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Version deletion failed");
+    } finally {
+      setDeletingVersion("");
+    }
+  };
+
   if (status === "loading" || !project) {
     return <div className="min-h-screen bg-[#0a0a0f] p-8 pt-24 text-white">{error || "Loading project..."}</div>;
   }
@@ -247,7 +266,7 @@ export default function EditorPage() {
                 <div key={version.id} className="rounded-lg bg-white/5 p-3">
                   <p className="text-sm text-gray-200">{version.message || "Version"}</p>
                   <p className="mt-1 text-xs text-gray-500">{new Date(version.createdAt).toLocaleString()}</p>
-                  <button onClick={() => rollback(version.id)} className="mt-2 text-xs text-amber-300 hover:underline">Restore</button>
+                  <div className="mt-2 flex gap-3"><button onClick={() => rollback(version.id)} className="text-xs text-amber-300 hover:underline">Restore</button><button onClick={() => deleteVersion(version.id)} disabled={deletingVersion === version.id} className="text-xs text-red-300 hover:underline">{deletingVersion === version.id ? "Deleting..." : "Delete"}</button></div>
                 </div>
               ))}
             </div>

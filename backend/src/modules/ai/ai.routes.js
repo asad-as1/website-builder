@@ -1,7 +1,7 @@
 ﻿const router = require('express').Router();
 const aiService = require('./ai.service');
 const { authenticate } = require('../auth/auth.middleware');
-const prisma = require('../../shared/prisma/prisma.client');
+const db = require('../../shared/mongodb/mongodb.client');
 const archiverModule = require('archiver');
 
 // Generate website
@@ -16,9 +16,9 @@ router.post('/generate', authenticate, async (req, res) => {
       });
     }
 
-    if (prompt.length > 1300) {
+    if (prompt.length > 1500) {
       return res.status(400).json({ 
-        error: 'Please keep your description under 1300 characters.' 
+        error: 'Please keep your description under 1500 characters.' 
       });
     }
 
@@ -55,7 +55,7 @@ router.post('/save', authenticate, async (req, res) => {
 router.get('/projects', authenticate, async (req, res) => {
   try {
     const userId = req.userId;
-    const projects = await prisma.project.findMany({
+    const projects = await db.project.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -93,6 +93,15 @@ router.get('/projects/by-slug/:slug', authenticate, async (req, res) => {
   }
 });
 
+router.delete('/projects/:projectId', authenticate, async (req, res) => {
+  try {
+    await aiService.deleteProject(req.userId, req.params.projectId);
+    res.json({ message: 'Project deleted successfully' });
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
 // Update files and create a new version
 router.put('/projects/:projectId/files', authenticate, async (req, res) => {
   try {
@@ -123,6 +132,15 @@ router.post('/projects/:projectId/rollback/:versionId', authenticate, async (req
   }
 });
 
+router.delete('/projects/:projectId/versions/:versionId', authenticate, async (req, res) => {
+  try {
+    await aiService.deleteProjectVersion(req.userId, req.params.projectId, req.params.versionId);
+    res.json({ message: 'Version deleted successfully' });
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
 // AI-powered targeted edit
 router.post('/projects/:projectId/edit', authenticate, async (req, res) => {
   try {
@@ -142,7 +160,7 @@ router.post('/projects/:projectId/edit', authenticate, async (req, res) => {
 // Secure ZIP export
 router.get('/projects/:projectId/download', authenticate, async (req, res) => {
   try {
-    const project = await prisma.project.findFirst({
+    const project = await db.project.findFirst({
       where: { id: req.params.projectId, userId: req.userId },
       select: { name: true, files: true }
     });

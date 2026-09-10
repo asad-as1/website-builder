@@ -1,11 +1,11 @@
 const bcrypt = require('bcryptjs');
-const prisma = require('../../shared/prisma/prisma.client');
+const db = require('../../shared/mongodb/mongodb.client');
 const jwtService = require('../../shared/jwt/jwt.service');
 const emailService = require('../../shared/email/email.service');
 
 // ==================== REGISTER ====================
 const register = async ({ email, password, name }) => {
-  const existingUser = await prisma.user.findUnique({
+  const existingUser = await db.user.findUnique({
     where: { email }
   });
 
@@ -17,7 +17,7 @@ const register = async ({ email, password, name }) => {
   const verifyToken = jwtService.generateEmailToken();
   const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  const user = await prisma.user.create({
+  const user = await db.user.create({
     data: {
       email,
       password: hashedPassword,
@@ -42,7 +42,7 @@ const register = async ({ email, password, name }) => {
 
 // ==================== VERIFY EMAIL ====================
 const verifyEmail = async (token) => {
-  const user = await prisma.user.findFirst({
+  const user = await db.user.findFirst({
     where: { verifyToken: token }
   });
 
@@ -62,7 +62,7 @@ const verifyEmail = async (token) => {
     };
   }
 
-  await prisma.user.update({
+  await db.user.update({
     where: { id: user.id },
     data: {
       emailVerified: true,
@@ -83,14 +83,14 @@ const verifyEmail = async (token) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      plan: user.plan || 'free'
+      role: user.role
     }
   };
 };
 
 // ==================== LOGIN ====================
 const login = async ({ email, password }) => {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { email }
   });
 
@@ -115,7 +115,7 @@ const login = async ({ email, password }) => {
         email: user.email,
         name: user.name,
         avatar: user.avatar,
-        plan: user.plan || 'free'
+        role: user.role
       }
     };
   }
@@ -143,7 +143,7 @@ const login = async ({ email, password }) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      plan: user.plan || 'free'
+      role: user.role
     }
   };
 };
@@ -154,17 +154,17 @@ const googleAuth = async ({ email, name, picture, googleId }) => {
     throw new Error('Email and googleId are required');
   }
 
-  let user = await prisma.user.findUnique({
+  let user = await db.user.findUnique({
     where: { googleId }
   });
 
   if (!user) {
-    user = await prisma.user.findUnique({
+    user = await db.user.findUnique({
       where: { email }
     });
 
     if (user) {
-      user = await prisma.user.update({
+      user = await db.user.update({
         where: { id: user.id },
         data: {
           googleId,
@@ -174,7 +174,7 @@ const googleAuth = async ({ email, name, picture, googleId }) => {
         }
       });
     } else {
-      user = await prisma.user.create({
+      user = await db.user.create({
         data: {
           email,
           name: name || 'User',
@@ -195,21 +195,21 @@ const googleAuth = async ({ email, name, picture, googleId }) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      plan: user.plan || 'free'
+      role: user.role
     }
   };
 };
 
 // ==================== GET CURRENT USER ====================
 const getMe = async (userId) => {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
       email: true,
       name: true,
       avatar: true,
-      plan: true,
+      role: true,
       apiUsage: true,
       emailVerified: true,
       isActive: true,
@@ -230,7 +230,7 @@ const getMe = async (userId) => {
 
 // ==================== DELETE ACCOUNT ====================
 const deleteAccount = async (userId) => {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId }
   });
 
@@ -242,7 +242,7 @@ const deleteAccount = async (userId) => {
     throw new Error('Account already deactivated');
   }
 
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: {
       isActive: false,
@@ -255,7 +255,7 @@ const deleteAccount = async (userId) => {
 
 // ==================== RESEND VERIFICATION ====================
 const resendVerification = async (email) => {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { email }
   });
 
@@ -270,7 +270,7 @@ const resendVerification = async (email) => {
   const newToken = jwtService.generateEmailToken();
   const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  await prisma.user.update({
+  await db.user.update({
     where: { id: user.id },
     data: {
       verifyToken: newToken,
