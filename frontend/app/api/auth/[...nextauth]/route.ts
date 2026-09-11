@@ -38,7 +38,6 @@ const handler = NextAuth({
           throw new Error(data.error || "Invalid credentials");
         } catch (error) {
           const message = error instanceof Error ? error.message : "Invalid credentials";
-          console.error("❌ NextAuth - Error:", message);
           throw new Error(message);
         }
       }
@@ -56,7 +55,6 @@ const handler = NextAuth({
 
       const googleId = profile?.sub;
       if (!user.email || !googleId) {
-        console.error("NextAuth - Google profile is missing email or subject");
         return false;
       }
 
@@ -74,7 +72,6 @@ const handler = NextAuth({
 
         const data = await response.json();
         if (!response.ok || !data.token || !data.user) {
-          console.error("NextAuth - Backend Google authentication failed:", data.error);
           return false;
         }
 
@@ -86,10 +83,8 @@ const handler = NextAuth({
         user.name = data.user.name || user.name;
         user.provider = "google";
 
-        console.log("✅ NextAuth - Google signIn successful for:", user.email);
         return true;
       } catch (error) {
-        console.error("❌ NextAuth - Google signIn error:", error);
         return false;
       }
     },

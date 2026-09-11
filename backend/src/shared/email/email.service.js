@@ -45,7 +45,6 @@ const sendVerificationEmail = async (email, token) => {
 
     return true;
   } catch (error) {
-    console.error('❌ Email send error:', error.message);
     return false;
   }
 };

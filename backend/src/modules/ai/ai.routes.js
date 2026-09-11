@@ -7,7 +7,7 @@ const archiverModule = require('archiver');
 // Generate website
 router.post('/generate', authenticate, async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const { prompt, aiProvider, aiApiKey } = req.body;
     const userId = req.userId;
 
     if (!prompt || prompt.trim().length < 5) {
@@ -22,10 +22,13 @@ router.post('/generate', authenticate, async (req, res) => {
       });
     }
 
-    const result = await aiService.generateWebsite(userId, prompt);
+    const result = await aiService.generateWebsite(
+      userId,
+      prompt,
+      aiApiKey ? { provider: aiProvider, apiKey: aiApiKey } : undefined,
+    );
     res.json(result);
   } catch (error) {
-    console.error('Generate error:', error);
     res.status(500).json({ error: error.message || 'Generation failed' });
   }
 });
@@ -46,7 +49,6 @@ router.post('/save', authenticate, async (req, res) => {
       project 
     });
   } catch (error) {
-    console.error('Save error:', error);
     res.status(500).json({ error: error.message || 'Failed to save project' });
   }
 });
@@ -64,13 +66,48 @@ router.get('/projects', authenticate, async (req, res) => {
         prompt: true,
         status: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        thumbnail: true
       }
     });
+
     res.json({ projects });
   } catch (error) {
-    console.error('Projects error:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+router.post('/projects/:projectId/duplicate', authenticate, async (req, res) => {
+  try {
+    const project = await aiService.duplicateProject(req.userId, req.params.projectId);
+    res.status(201).json({ project });
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+router.get('/analytics', authenticate, async (req, res) => {
+  try {
+    res.json({ analytics: await aiService.getAnalytics(req.userId) });
+  } catch (error) {
+    res.status(500).json({ error: 'Analytics could not be loaded' });
+  }
+});
+
+router.post('/projects/:projectId/share', authenticate, async (req, res) => {
+  try {
+    const project = await aiService.enableSharing(req.userId, req.params.projectId);
+    res.json({ shareToken: project.shareToken });
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+router.get('/shared/:shareToken', async (req, res) => {
+  try {
+    res.json({ project: await aiService.getSharedProject(req.params.shareToken) });
+  } catch (error) {
+    res.status(404).json({ error: 'Shared project not found' });
   }
 });
 
@@ -187,7 +224,6 @@ router.get('/projects/:projectId/download', authenticate, async (req, res) => {
 
     const archive = new archiverModule.ZipArchive({ zlib: { level: 9 } });
     archive.on('error', (error) => {
-      console.error('ZIP archive error:', error);
       if (!res.headersSent) res.status(500).json({ error: `Failed to create ZIP: ${error.message}` });
       else res.destroy(error);
     });
@@ -196,7 +232,6 @@ router.get('/projects/:projectId/download', authenticate, async (req, res) => {
     for (const file of safeFiles) archive.append(file.content, { name: file.path });
     await archive.finalize();
   } catch (error) {
-    console.error('Download error:', error);
     if (!res.headersSent) res.status(500).json({ error: `Failed to create ZIP: ${error.message}` });
   }
 });

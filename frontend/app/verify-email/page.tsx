@@ -65,7 +65,6 @@ function VerifyEmailContent() {
         }
 
       } catch (error) {
-        console.error('Frontend - Error:', error);
         setStatus('error');
         setMessage('Something went wrong. Please try again.');
       }

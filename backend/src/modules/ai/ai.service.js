@@ -1,6 +1,7 @@
 const providers = require('./providers');
 const { checkRateLimit, incrementUsage } = require('./rateLimiter');
 const db = require('../../shared/mongodb/mongodb.client');
+const crypto = require('crypto');
 
 // Build prompt
 const buildPrompt = (userPrompt) => {
@@ -77,8 +78,47 @@ const parseFiles = (text) => {
   return files;
 };
 
+const createUserProvider = ({ provider = 'openai', apiKey }) => {
+  const configs = {
+    openai: { baseURL: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+    groq: { baseURL: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+    openrouter: { baseURL: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini' },
+    deepseek: { baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  };
+  if (provider === 'gemini') {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const client = new GoogleGenerativeAI(apiKey);
+    return {
+      name: 'gemini (your key)',
+      client,
+      generate: async (activeClient, prompt) => {
+        const model = activeClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        const response = await model.generateContent(prompt);
+        return response.response.text();
+      },
+    };
+  }
+  const config = configs[provider];
+  if (!config) throw new Error('Unsupported AI provider. Choose Gemini, OpenAI, Groq, OpenRouter, or DeepSeek.');
+  const OpenAI = require('openai');
+  const client = new OpenAI({ apiKey, baseURL: config.baseURL });
+  return {
+    name: `${provider} (your key)`,
+    client,
+    generate: async (activeClient, prompt) => {
+      const response = await activeClient.chat.completions.create({
+        model: config.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 4096,
+      });
+      return response.choices[0]?.message?.content || '';
+    },
+  };
+};
+
 // Generate website with fallback
-const generateWebsite = async (userId, userPrompt) => {
+const generateWebsite = async (userId, userPrompt, userProvider) => {
   // Check rate limit
   const rateCheck = await checkRateLimit(userId);
   if (!rateCheck.allowed) {
@@ -88,9 +128,11 @@ const generateWebsite = async (userId, userPrompt) => {
   const prompt = buildPrompt(userPrompt);
   let lastError = null;
 
-  for (const provider of providers) {
+  const activeProviders = userProvider?.apiKey
+    ? [createUserProvider(userProvider)]
+    : providers;
+  for (const provider of activeProviders) {
     try {
-      console.log(`🔄 Trying ${provider.name}...`);
       const code = await provider.generate(provider.client, prompt);
       if (typeof code !== 'string' || !code.trim()) {
         throw new Error('Provider returned an empty response');
@@ -106,8 +148,6 @@ const generateWebsite = async (userId, userPrompt) => {
         throw new Error('No files generated');
       }
 
-      console.log(`✅ ${provider.name} generated ${files.length} files`);
-
       return {
         provider: provider.name,
         files,
@@ -115,23 +155,28 @@ const generateWebsite = async (userId, userPrompt) => {
         generatedAt: new Date().toISOString()
       };
     } catch (error) {
-      console.error(`❌ ${provider.name} failed:`, error.message);
       lastError = error;
       continue;
     }
   }
 
-  throw new Error('All AI providers are currently busy. Please try again in 5 minutes.');
+  if (userProvider?.apiKey && lastError) {
+    const providerMessage = lastError.message || 'The provider rejected the request.';
+    throw new Error(`Your ${userProvider.provider || 'AI'} key could not generate this project: ${providerMessage}`);
+  }
+  throw new Error('All configured AI providers failed. Please try again in a moment.');
 };
 
 // Save project
 const saveProject = async (userId, name, prompt, files) => {
+  const thumbnail = makeThumbnail(name || prompt);
   const project = await db.project.create({
     data: {
       userId,
       name: name || prompt.substring(0, 50),
       prompt,
       files: files,
+      thumbnail,
       status: 'completed'
     },
     include: { versions: true }
@@ -146,6 +191,77 @@ const saveProject = async (userId, name, prompt, files) => {
     }
   });
 
+  return project;
+};
+
+const makeThumbnail = (value = 'Project') => {
+  const palettes = [
+    'from-cyan-500/30 to-blue-600/30',
+    'from-fuchsia-500/30 to-purple-600/30',
+    'from-emerald-500/30 to-teal-600/30',
+    'from-amber-500/30 to-rose-600/30',
+  ];
+  const emojis = ['✦', '◈', '◉', '⬢', '✺', '✧'];
+  const hash = [...String(value)].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return { emoji: emojis[hash % emojis.length], gradient: palettes[hash % palettes.length] };
+};
+
+const duplicateProject = async (userId, projectId) => {
+  const source = await db.project.findFirst({ where: { id: projectId, userId } });
+  if (!source) throw new Error('Project not found');
+  const name = `${source.name || 'Project'} Copy`;
+  const duplicate = await db.project.create({
+    data: {
+      userId,
+      name,
+      prompt: source.prompt,
+      files: source.files,
+      thumbnail: makeThumbnail(name),
+      status: source.status || 'draft',
+    },
+  });
+  await db.projectVersion.create({
+    data: { projectId: duplicate.id, userId, files: duplicate.files, message: 'Duplicated project' },
+  });
+  return getProject(userId, duplicate.id);
+};
+
+const getAnalytics = async (userId) => {
+  const [projects, user] = await Promise.all([
+    db.project.findMany({ where: { userId }, select: { id: true, name: true, createdAt: true, updatedAt: true, files: true } }),
+    db.user.findUnique({ where: { id: userId }, select: { apiUsage: true, previewUsage: true } }),
+  ]);
+  const versions = await db.projectVersion.findMany({ where: { userId }, select: { createdAt: true } });
+  const now = new Date();
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    const next = new Date(date);
+    next.setDate(next.getDate() + 1);
+    const label = date.toLocaleDateString('en-US', { weekday: 'short' });
+    return {
+      label,
+      projects: projects.filter((item) => new Date(item.createdAt) >= date && new Date(item.createdAt) < next).length,
+      edits: versions.filter((item) => new Date(item.createdAt) >= date && new Date(item.createdAt) < next).length,
+    };
+  });
+  return {
+    totals: { projects: projects.length, files: projects.reduce((sum, item) => sum + (Array.isArray(item.files) ? item.files.length : 0), 0), versions: versions.length, aiRequests: user?.apiUsage || 0, previews: user?.previewUsage || 0 },
+    days,
+  };
+};
+
+const enableSharing = async (userId, projectId) => {
+  const project = await db.project.findFirst({ where: { id: projectId, userId } });
+  if (!project) throw new Error('Project not found');
+  const shareToken = project.shareToken || crypto.randomBytes(24).toString('hex');
+  return db.project.update({ where: { id: projectId }, data: { shareToken, shareEnabled: true } });
+};
+
+const getSharedProject = async (shareToken) => {
+  const project = await db.project.findFirst({ where: { shareToken, shareEnabled: true }, select: { name: true, prompt: true, files: true, thumbnail: true, updatedAt: true } });
+  if (!project) throw new Error('Shared project not found');
   return project;
 };
 
@@ -203,7 +319,7 @@ const updateProjectFiles = async (userId, projectId, files, message) => {
     });
     return result;
   });
-  return updated;
+  return getProject(userId, projectId);
 };
 
 const rollbackProject = async (userId, projectId, versionId) => {
@@ -246,7 +362,6 @@ ${selected.map((file) => `\n[FILE: ${file.path}]\n${file.content}\n[END_FILE]`).
       const updatedFiles = files.map((file) => changedByPath.get(file.path) || file);
       return updateProjectFiles(userId, projectId, updatedFiles, `AI edit: ${instruction}`);
     } catch (error) {
-      console.error(`Edit provider ${provider.name} failed:`, error.message);
     }
   }
   throw new Error('All AI providers failed to edit the project');
@@ -262,4 +377,8 @@ module.exports = {
   updateProjectFiles,
   rollbackProject,
   editProject
+  ,duplicateProject
+  ,getAnalytics
+  ,enableSharing
+  ,getSharedProject
 };

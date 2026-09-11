@@ -45,7 +45,8 @@ router.post('/:projectId', authenticate, async (req, res) => {
     if (!packageJson.scripts || typeof packageJson.scripts.dev !== 'string') {
       return res.status(400).json({ error: 'Generated project has no dev script' });
     }
-    const usesTailwindV3 = `${packageJson.dependencies?.tailwindcss || ''}${packageJson.devDependencies?.tailwindcss || ''}`.includes('3');
+    const tailwindVersion = `${packageJson.dependencies?.tailwindcss || ''}${packageJson.devDependencies?.tailwindcss || ''}`;
+    const usesTailwindV3 = tailwindVersion.includes('3') || !tailwindVersion;
     const hasNextConfig = files.some((file) => /^next\.config\.(js|mjs|ts)$/.test(file.path));
 
     sandbox = await Sandbox.create({
@@ -56,7 +57,9 @@ router.post('/:projectId', authenticate, async (req, res) => {
     await sandbox.commands.run('rm -rf /home/user/* /home/user/.[!.]*', commandOptions);
     for (const file of files) {
       const content = usesTailwindV3 && file.path === 'app/globals.css'
-        ? file.content.replace(/@tailwindcss\s+(base|components|utilities)\s*;/g, '@tailwind $1;')
+        ? file.content
+          .replace(/@import\s+["']tailwindcss["']\s*;/g, '@tailwind base;\n@tailwind components;\n@tailwind utilities;')
+          .replace(/@tailwindcss\s+(base|components|utilities)\s*;/g, '@tailwind $1;')
         : file.content;
       await sandbox.files.write(path.posix.join('/home/user', file.path), content);
     }
@@ -100,9 +103,16 @@ module.exports = {
       }
     }
     if (sandbox) await sandbox.kill().catch(() => undefined);
-    console.error('Preview error:', error);
-    const details = runtimeLog ? ` ${runtimeLog.slice(-2000)}` : '';
-    res.status(502).json({ error: `Could not start preview sandbox: ${error.message || 'sandbox startup failed'}${details}` });
+    const rawDetails = `${error.message || ''} ${runtimeLog}`;
+    let friendly = 'The generated project could not start. Please try generating it again.';
+    if (/globals\.css|SyntaxError|postcss|tailwind/i.test(rawDetails)) {
+      friendly = 'Preview could not compile the generated styles. Try generating again, or remove advanced CSS directives from the project.';
+    } else if (/npm install|lockfile|dependencies/i.test(rawDetails)) {
+      friendly = 'Preview dependencies could not be installed in the sandbox. Please try again in a moment.';
+    } else if (/timeout|deadline/i.test(rawDetails)) {
+      friendly = 'Preview took too long to start. Please try again.';
+    }
+    res.status(502).json({ error: friendly });
   }
 });
 

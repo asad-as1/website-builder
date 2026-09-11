@@ -64,7 +64,6 @@ export default function LoginPage() {
         router.refresh();
       }
     } catch (err) {
-      console.error("Login error:", err);
       setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);

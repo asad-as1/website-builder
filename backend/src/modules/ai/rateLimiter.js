@@ -10,7 +10,7 @@ const checkRateLimit = async (userId) => {
     throw new Error('User not found');
   }
 
-  const limit = 50;
+  const limit = 20;
   const now = new Date();
   const resetDate = user.usageResetAt || new Date(now.getTime() + 24 * 60 * 60 * 1000);
 

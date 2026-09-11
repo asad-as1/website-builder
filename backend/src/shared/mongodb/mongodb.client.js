@@ -4,7 +4,7 @@ const { User, Project, ProjectVersion } = require('../../models');
 const connectMongoDB = async () => {
   if (mongoose.connection.readyState === 1) return;
   await mongoose.connect(process.env.DATABASE_URL);
-  console.log('MongoDB connected');
+  console.log('Connected to MongoDB');
 };
 
 const modelMap = { user: User, project: Project, projectVersion: ProjectVersion };
@@ -20,7 +20,12 @@ const projectDocument = async (document, options = {}) => {
   }
   if (options.include?.versions) {
     let versions = await ProjectVersion.find({ projectId: result.id || result._id }).sort({ createdAt: -1 });
-    result.versions = versions.map(plain);
+    result.versions = versions.map((version) => {
+      const item = plain(version);
+      item.id = item._id;
+      delete item._id;
+      return item;
+    });
   }
   delete result._id;
   return result;

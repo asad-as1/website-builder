@@ -8,7 +8,7 @@ const listUsers = async (req, res) => {
   const usersWithMetrics = await Promise.all(users.map(async (user) => ({
     ...user,
     projectCount: await db.project.count({ where: { userId: user.id } }),
-    apiRemaining: Math.max(50 - (user.apiUsage || 0), 0),
+    apiRemaining: Math.max(20 - (user.apiUsage || 0), 0),
   })));
   return res.json({ users: usersWithMetrics });
 };

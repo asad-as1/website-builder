@@ -8,6 +8,12 @@ const projectSchema = new mongoose.Schema({
   files: mongoose.Schema.Types.Mixed,
   zipUrl: String,
   previewUrl: String,
+  thumbnail: {
+    emoji: { type: String, default: '✦' },
+    gradient: { type: String, default: 'from-cyan-500/30 to-purple-600/30' },
+  },
+  shareToken: { type: String, unique: true, sparse: true, index: true },
+  shareEnabled: { type: Boolean, default: false },
   framework: { type: String, default: 'nextjs' },
   status: { type: String, default: 'draft' },
 }, { timestamps: true, versionKey: false });

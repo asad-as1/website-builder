@@ -25,9 +25,8 @@ app.use('/api/admin', require('./routes/admin.routes'));
 // Start server
 connectMongoDB()
   .then(() => app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
   }))
   .catch((error) => {
-    console.error('MongoDB connection failed:', error);
     process.exit(1);
   });
