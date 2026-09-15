@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -34,6 +34,27 @@ export default function DashboardPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const hasLoadedTemplate = useRef(false);
+
+  useEffect(() => {
+    if (hasLoadedTemplate.current) return;
+    hasLoadedTemplate.current = true;
+
+    const selectedTemplate = sessionStorage.getItem("selectedTemplate");
+    if (!selectedTemplate) return;
+
+    try {
+      const template = JSON.parse(selectedTemplate) as { name?: string; prompt?: string };
+      if (template.name && template.prompt) {
+        setProjectName(template.name);
+        setPrompt(template.prompt);
+      }
+    } catch {
+      // Ignore an invalid saved selection.
+    } finally {
+      sessionStorage.removeItem("selectedTemplate");
+    }
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -66,8 +87,25 @@ export default function DashboardPage() {
     setError("");
     setMessage("");
     setFiles([]);
-    const steps = ["Analyzing your brief...", "Writing app/page.tsx...", "Building components...", "Checking generated files..."];
-    let index = 0;
+const steps = [
+  "Analyzing your brief...",
+  "Understanding requirements...",
+  "Planning project structure...",
+  "Setting up folder structure...",
+  "Writing package.json...",
+  "Installing dependencies...",
+  "Generating backend files...",
+  "Generating frontend files...",
+  "Writing...",
+  "Building components...",
+  "Adding Tailwind styles...",
+  "Creating routes and pages...",
+  "Connecting API endpoints...",
+  "Adding error handling...",
+  "Checking generated files...",
+  "Validating file structure...",
+  "Finalizing project...",
+];    let index = 0;
     setProgress(steps[0]);
     const timer = window.setInterval(() => {
       index = Math.min(index + 1, steps.length - 1);
@@ -83,7 +121,7 @@ export default function DashboardPage() {
       if (!response.ok) throw new Error(data.error || "Generation failed");
       setFiles(data.files || []);
       setUsage((current) => ({ ...current, used: current.used + 1 }));
-      setMessage(`Generated ${data.files?.length || 0} files with ${data.provider}.`);
+      setMessage(`Generated ${data.files?.length || 0} files.`);
     } catch (generationError) {
       setError(generationError instanceof Error ? generationError.message : "Generation failed.");
     } finally {

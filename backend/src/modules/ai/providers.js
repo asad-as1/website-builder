@@ -2,15 +2,16 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Groq = require('groq-sdk');
 const OpenAI = require('openai');
 
+// xKiro models with model-specific max_tokens
 const xKiroModels = [
-  ['devstral', 'mistralai/devstral-medium'],
-  ['qwen-coder', 'qwen/qwen3-coder-plus:free'],
-  ['codestral', 'mistralai/codestral-2508'],
-  ['deepseek-v4-pro', 'deepseek/deepseek-v4-pro'],
-  ['mistral-large', 'mistralai/mistral-large-2512'],
+  ['qwen-coder', 'qwen/qwen3-coder-plus:free', 32000],      // 1M context, 65K output
+  ['deepseek-v4-pro', 'deepseek/deepseek-v4-pro', 32000],   // 1M context, 384K output
+  ['mistral-large', 'mistralai/mistral-large-2512', 16000], // 262K context
+  ['codestral', 'mistralai/codestral-2508', 16000],         // 256K context
+  ['devstral', 'mistralai/devstral-medium', 8000],          // 128K context
 ];
 
-const createXKiroProvider = ([name, model]) => ({
+const createXKiroProvider = ([name, model, maxTokens]) => ({
   name: `xkiro/${name}`,
   client: new OpenAI({
     baseURL: 'https://api.xkiro.com/v1',
@@ -22,14 +23,13 @@ const createXKiroProvider = ([name, model]) => ({
       model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: maxTokens,
     });
     return response.choices[0]?.message?.content || '';
   },
 });
 
 const providers = [
-  ...(process.env.XKIRO_API_KEY ? xKiroModels.map(createXKiroProvider) : []),
   {
     name: 'gemini',
     client: new GoogleGenerativeAI(process.env.GEMINI_API_KEY),
@@ -41,6 +41,7 @@ const providers = [
       return result.response.text();
     },
   },
+  ...(process.env.XKIRO_API_KEY ? xKiroModels.map(createXKiroProvider) : []),
   {
     name: 'groq',
     client: new Groq({ apiKey: process.env.GROQ_API_KEY }),
@@ -51,11 +52,12 @@ const providers = [
         model: 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
-        max_tokens: 4096,
+        max_tokens: 16000,
       });
       return response.choices[0]?.message?.content || '';
     },
   },
+  // ✅ DeepSeek last
   {
     name: 'deepseek',
     client: new OpenAI({
@@ -68,7 +70,7 @@ const providers = [
         model: 'deepseek-chat',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
-        max_tokens: 4096,
+        max_tokens: 16000,
       });
       return response.choices[0]?.message?.content || '';
     },

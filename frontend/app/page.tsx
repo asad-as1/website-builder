@@ -59,6 +59,20 @@ export default function HomePage() {
     { name: "Blog", icon: "📝", color: "from-green-500 to-emerald-500" }
   ];
 
+  const templatePrompts = {
+    Portfolio: "A polished creative portfolio with a dark editorial layout, featured case studies, testimonials, services, and a contact form.",
+    Restaurant: "A warm modern restaurant website with a menu, chef story, opening hours, location map, photo gallery, and reservation call to action.",
+    Agency: "A conversion-focused digital agency website with services, client logos, case studies, team profiles, testimonials, and a project inquiry form.",
+    Blog: "A clean, readable personal blog with a featured article, category sections, author introduction, newsletter signup, and recent posts.",
+  };
+
+  const selectTemplate = (template: typeof templates[number]) => {
+    sessionStorage.setItem("selectedTemplate", JSON.stringify({
+      name: template.name,
+      prompt: templatePrompts[template.name as keyof typeof templatePrompts],
+    }));
+  };
+
   const stats = [
     { icon: <Users className="w-5 h-5" />, value: "1,200+", label: "websites built" },
     { icon: <Star className="w-5 h-5" />, value: "4.9", label: "average rating" },
@@ -288,14 +302,21 @@ export default function HomePage() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
-                className={`group relative p-8 rounded-2xl bg-gradient-to-br ${template.color} bg-opacity-10 hover:scale-105 transition-all duration-300 cursor-pointer border border-white/10 hover:border-white/30 overflow-hidden`}
+                className="h-full"
               >
-                <div className="text-4xl mb-3">{template.icon}</div>
-                <h3 className="text-lg font-semibold">{template.name}</h3>
-                <p className="text-sm text-white/60 flex items-center gap-1 mt-1">
-                  View template <ChevronRight className="w-4 h-4" />
-                </p>
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
+                <Link
+                  href={isLoggedIn ? "/dashboard" : "/register"}
+                  onClick={() => selectTemplate(template)}
+                  className={`group relative block h-full p-8 rounded-2xl bg-gradient-to-br ${template.color} bg-opacity-10 hover:scale-105 transition-all duration-300 cursor-pointer border border-white/10 hover:border-white/30 overflow-hidden`}
+                >
+                  <div className="text-4xl mb-3">{template.icon}</div>
+                  <h3 className="text-lg font-semibold">{template.name}</h3>
+                  <p className="mt-2 min-h-10 text-sm text-white/70">{templatePrompts[template.name as keyof typeof templatePrompts]}</p>
+                  <p className="mt-3 flex items-center gap-1 text-sm text-white/60">
+                    Use this template <ChevronRight className="w-4 h-4" />
+                  </p>
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
+                </Link>
               </motion.div>
             ))}
           </div>

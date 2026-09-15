@@ -173,26 +173,26 @@ export default function EditorPage() {
     URL.revokeObjectURL(url);
   };
 
-  const exportToGitHub = async () => {
-    if (!project || !apiUrl || !session?.user.accessToken) return;
-    setIsExporting(true);
-    setError("");
-    setMessage("");
-    try {
-      const response = await fetch(`${apiUrl}/ai/projects/${project.id}/github-export`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.user.accessToken}` },
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "GitHub export failed");
-      setMessage("Project exported to GitHub.");
-      window.open(data.repositoryUrl, "_blank", "noopener,noreferrer");
-    } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : "GitHub export failed");
-    } finally {
-      setIsExporting(false);
-    }
-  };
+  // const exportToGitHub = async () => {
+  //   if (!project || !apiUrl || !session?.user.accessToken) return;
+  //   setIsExporting(true);
+  //   setError("");
+  //   setMessage("");
+  //   try {
+  //     const response = await fetch(`${apiUrl}/ai/projects/${project.id}/github-export`, {
+  //       method: "POST",
+  //       headers: { Authorization: `Bearer ${session.user.accessToken}` },
+  //     });
+  //     const data = await response.json();
+  //     if (!response.ok) throw new Error(data.error || "GitHub export failed");
+  //     setMessage("Project exported to GitHub.");
+  //     window.open(data.repositoryUrl, "_blank", "noopener,noreferrer");
+  //   } catch (exportError) {
+  //     setError(exportError instanceof Error ? exportError.message : "GitHub export failed");
+  //   } finally {
+  //     setIsExporting(false);
+  //   }
+  // };
 
   const applyAiEdit = async () => {
     if (!project || !apiUrl || !session?.user.accessToken || instruction.trim().length < 5) return;
@@ -272,7 +272,7 @@ export default function EditorPage() {
       console.log("[Preview UI] Starting StackBlitz fallback");
       setError(previewError instanceof Error ? previewError.message : "Preview failed");
       setStackBlitzPreview(true);
-      setMessage("E2B/Daytona preview was unavailable. Open the StackBlitz fallback in a new tab.");
+      setMessage("Preview was unavailable. Open the StackBlitz in a new tab.");
     } finally {
       setIsPreviewing(false);
     }
@@ -328,7 +328,7 @@ export default function EditorPage() {
           </div>
           <div className="flex gap-2">
             <button onClick={downloadZip} className="rounded-lg bg-white/10 px-4 py-2 font-semibold">Download ZIP</button>
-            <button onClick={exportToGitHub} disabled={isExporting} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-200 disabled:cursor-not-allowed disabled:opacity-60">{isExporting ? "Exporting..." : "GitHub export"}</button>
+            {/* <button onClick={exportToGitHub} disabled={isExporting} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-200 disabled:cursor-not-allowed disabled:opacity-60">{isExporting ? "Exporting..." : "GitHub export"}</button> */}
             <button onClick={shareProject} className="rounded-lg bg-purple-500/20 px-4 py-2 font-semibold text-purple-200">Share</button>
             <button onClick={startPreview} disabled={isPreviewing} className="rounded-lg bg-emerald-500/20 px-4 py-2 font-semibold disabled:opacity-60">
               {isPreviewing ? "Starting..." : "Live Preview"}{previewRemaining !== null ? ` (${previewRemaining} left)` : ""}

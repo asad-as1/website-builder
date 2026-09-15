@@ -3,117 +3,115 @@ const { checkRateLimit, incrementUsage } = require('./rateLimiter');
 const db = require('../../shared/mongodb/mongodb.client');
 const crypto = require('crypto');
 
-const exportProjectToGitHub = async (userId, projectId) => {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) throw new Error('GitHub export is not configured. Add GITHUB_TOKEN to the backend environment.');
-
-  const project = await db.project.findFirst({
-    where: { id: projectId, userId },
-    select: { name: true, files: true },
-  });
-  if (!project) throw new Error('Project not found');
-
-  const files = Array.isArray(project.files) ? project.files : [];
-  const safeFiles = files.filter((file) => (
-    file &&
-    typeof file.path === 'string' &&
-    typeof file.content === 'string' &&
-    file.path.length <= 200 &&
-    !file.path.startsWith('/') &&
-    !file.path.includes('..') &&
-    /^[a-zA-Z0-9_.-]+(?:\/([a-zA-Z0-9_.-]+))*\.[a-zA-Z0-9]+$/.test(file.path)
-  ));
-  if (!safeFiles.length || safeFiles.length !== files.length) {
-    throw new Error('Project files failed GitHub export validation');
-  }
-
-  const api = process.env.GITHUB_API_URL || 'https://api.github.com';
-  const headers = {
-    Accept: 'application/vnd.github+json',
-    Authorization: `Bearer ${token}`,
-    'X-GitHub-Api-Version': '2022-11-28',
-    'Content-Type': 'application/json',
-  };
-  const repositoryName = `${(project.name || 'genetix-project')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 70) || 'genetix-project'}-${Date.now().toString(36)}`;
-
-  const createResponse = await fetch(`${api}/user/repos`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      name: repositoryName,
-      description: `Website generated with Genetix: ${project.name || 'Untitled project'}`,
-      private: true,
-      auto_init: false,
-    }),
-  });
-  const created = await createResponse.json();
-  if (!createResponse.ok) {
-    throw new Error(created.message || 'GitHub repository could not be created');
-  }
-
-  for (const file of safeFiles) {
-    const uploadResponse = await fetch(`${api}/repos/${created.owner.login}/${created.name}/contents/${file.path.split('/').map(encodeURIComponent).join('/')}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({
-        message: `Add ${file.path}`,
-        content: Buffer.from(file.content, 'utf8').toString('base64'),
-      }),
-    });
-    const uploaded = await uploadResponse.json();
-    if (!uploadResponse.ok) {
-      throw new Error(uploaded.message || `GitHub could not upload ${file.path}`);
-    }
-  }
-
-  return { repositoryUrl: created.html_url, repositoryName };
-};
-
 // Build prompt
 const buildPrompt = (userPrompt) => {
   return `
-You are a full-stack developer. Generate a complete Next.js 15 + React 19 website based on this description:
+You are a senior full-stack developer. Generate a COMPLETE production-ready website with BOTH frontend and backend based on this description:
 
 "${userPrompt}"
 
-CRITICAL INSTRUCTIONS:
-1. Generate ONLY these files:
-   - package.json
-   - app/layout.tsx
-   - app/page.tsx
-   - app/globals.css
-   - README.md
+═══════════════════════════════════════════
+TECH STACK RULES (VERY IMPORTANT):
+═══════════════════════════════════════════
 
-2. Use TAILWIND CSS V3 (NOT V4). In package.json use:
-   "tailwindcss": "^3.4.0",
-   "postcss": "^8.4.0",
-   "autoprefixer": "^10.4.0"
+1. IF the user's description mentions any specific tech stack (e.g., "MERN", "Next.js", "Python Flask", "Django", "Vue", "Angular", etc.), use THAT EXACT stack.
 
-3. In app/globals.css use ONLY these three lines at the top:
-   @tailwind base;
-   @tailwind components;
-   @tailwind utilities;
+2. IF the user did NOT mention any tech stack, use DEFAULT MERN STACK:
+   BACKEND:
+   - Node.js + Express.js
+   - MongoDB with Mongoose
+   - JWT authentication (bcryptjs for password hashing)
+   - CORS, dotenv
+   
+   FRONTEND:
+   - React 18 + Vite
+   - React Router DOM v6
+   - Tailwind CSS V3 (NOT V4)
+   - Axios for API calls
+   - Context API for state management
 
-4. DO NOT use:
-   - @import "tailwindcss"
-   - @theme inline
-   - @custom-variant
-   - Any V4-specific syntax
+═══════════════════════════════════════════
+FILE GENERATION RULES:
+═══════════════════════════════════════════
 
-5. DO NOT add custom CSS @layer rules that might conflict.
+Generate a COMPLETE project with separate frontend/ and backend/ folders.
 
-6. Use EXACTLY this format for each file:
-   [FILE: app/page.tsx]
-   <file content here>
-   [END_FILE]
+BACKEND STRUCTURE (if MERN):
+- backend/package.json
+- backend/server.js
+- backend/config/db.js
+- backend/models/User.js, Product.js, Order.js
+- backend/routes/auth.js, products.js, orders.js
+- backend/middleware/auth.js
+- backend/.env.example
+- backend/README.md
 
-Return ONLY the files with [FILE] and [END_FILE] markers. No extra text.
+FRONTEND STRUCTURE (if MERN):
+- frontend/package.json
+- frontend/vite.config.js
+- frontend/tailwind.config.js
+- frontend/postcss.config.js
+- frontend/index.html
+- frontend/src/main.jsx
+- frontend/src/App.jsx
+- frontend/src/index.css
+- frontend/src/pages/ (Home, About, Products, ProductDetail, Cart, Checkout, Login, Register, Profile, Contact)
+- frontend/src/components/ (Navbar, Footer, ProductCard, Hero, etc.)
+- frontend/src/context/AuthContext.jsx, CartContext.jsx
+- frontend/src/api/axios.js
+- frontend/README.md
+
+═══════════════════════════════════════════
+FUNCTIONALITY REQUIREMENTS:
+═══════════════════════════════════════════
+
+- User authentication (register, login, JWT)
+- Full CRUD operations for main entities
+- Search and filter functionality
+- Responsive design (mobile-first)
+- Error handling on both frontend and backend
+- Form validation
+- Loading states
+- Environment variables setup
+- Complete API integration between frontend and backend
+- README with setup instructions for both folders
+
+═══════════════════════════════════════════
+TAILWIND CSS RULES:
+═══════════════════════════════════════════
+
+- Use Tailwind CSS V3 (NOT V4)
+- In package.json: "tailwindcss": "^3.4.0", "postcss": "^8.4.0", "autoprefixer": "^10.4.0"
+- In CSS file use ONLY:
+  @tailwind base;
+  @tailwind components;
+  @tailwind utilities;
+- DO NOT use @import "tailwindcss" or @theme inline (V4 syntax)
+
+═══════════════════════════════════════════
+OUTPUT FORMAT:
+═══════════════════════════════════════════
+
+Use EXACTLY this format for each file:
+
+[FILE: backend/server.js]
+<file content here>
+[END_FILE]
+
+[FILE: frontend/src/App.jsx]
+<file content here>
+[END_FILE]
+
+Generate AS MANY FILES as needed to make the project COMPLETE and PRODUCTION-READY.
+Do NOT limit yourself to a small number of files.
+
+Return ONLY the files with [FILE: path] and [END_FILE] markers.
+Do NOT explain your answer.
+Do NOT use Markdown fences.
+Use real file paths like "backend/server.js", "frontend/src/App.jsx".
 `;
 };
+
 // Parse AI response into files
 const parseFiles = (text) => {
   const files = [];
@@ -127,13 +125,18 @@ const parseFiles = (text) => {
   while ((match = regex.exec(normalizedText)) !== null) {
     const path = match[1].trim();
     const content = match[2].trim();
+    
+    // Allow multi-level paths (backend/, frontend/, src/, etc.)
     const isValidPath =
       path !== 'path' &&
       !path.includes('..') &&
+      path.length <= 200 &&
+      !path.startsWith('/') &&
       /^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.[a-zA-Z0-9]+$/.test(path);
+    
     const isReasoning = /the user said|i'll output|re-reading|must follow the format/i.test(content);
 
-    if (!isValidPath || !content || isReasoning || seenPaths.has(path)) {
+    if (!isValidPath || !content || content.length < 5 || isReasoning || seenPaths.has(path)) {
       continue;
     }
 
@@ -149,7 +152,7 @@ const parseFiles = (text) => {
 
 const sanitizeCss = (files) => {
   return files.map(file => {
-    if (file.path === 'app/globals.css' || file.path.endsWith('.css')) {
+    if (file.path.endsWith('.css')) {
       let content = file.content;
       
       // Remove Tailwind V4 import
@@ -207,14 +210,13 @@ const createUserProvider = ({ provider = 'openai', apiKey }) => {
         model: config.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
-        max_tokens: 4096,
+        max_tokens: 16000,
       });
       return response.choices[0]?.message?.content || '';
     },
   };
 };
 
-// Generate website with fallback
 // Generate website with fallback
 const generateWebsite = async (userId, userPrompt, userProvider) => {
   // Check rate limit
@@ -229,6 +231,7 @@ const generateWebsite = async (userId, userPrompt, userProvider) => {
   const activeProviders = userProvider?.apiKey
     ? [createUserProvider(userProvider)]
     : providers;
+    
   for (const provider of activeProviders) {
     console.log(`[AI] Trying provider: ${provider.name}${provider.model ? ` (${provider.model})` : ''}`);
     try {
@@ -239,13 +242,28 @@ const generateWebsite = async (userId, userPrompt, userProvider) => {
       
       // Parse files
       let files = parseFiles(code);
-      files = sanitizeCss(files);  
+      files = sanitizeCss(files);
       
-      if (
-        files.length === 0 ||
-        !files.some((file) => file.path === 'package.json') ||
-        !files.some((file) => file.path === 'app/page.tsx' || file.path === 'app/page.jsx' || file.path === 'pages/index.tsx' || file.path === 'pages/index.jsx')
-      ) {
+      // ✅ Updated validation — backend + frontend dono support karo
+      const hasPackageJson = files.some((file) => 
+        file.path === 'package.json' || 
+        file.path === 'backend/package.json' ||
+        file.path === 'frontend/package.json'
+      );
+
+      const hasMainFile = files.some((file) => 
+        file.path === 'app/page.tsx' || 
+        file.path === 'app/page.jsx' || 
+        file.path === 'pages/index.tsx' || 
+        file.path === 'pages/index.jsx' ||
+        file.path === 'frontend/src/App.jsx' ||
+        file.path === 'frontend/src/App.tsx' ||
+        file.path === 'frontend/src/main.jsx' ||
+        file.path === 'frontend/src/main.tsx'
+      );
+
+      if (files.length === 0 || !hasPackageJson || !hasMainFile) {
+        console.log(`[AI] Validation failed. Files found: ${files.map(f => f.path).join(', ')}`);
         throw new Error('Provider returned an invalid website structure');
       }
 
@@ -484,10 +502,9 @@ module.exports = {
   deleteProjectVersion,
   updateProjectFiles,
   rollbackProject,
-  editProject
-  ,duplicateProject
-  ,getAnalytics
-  ,enableSharing
-  ,getSharedProject
-  ,exportProjectToGitHub
+  editProject,
+  duplicateProject,
+  getAnalytics,
+  enableSharing,
+  getSharedProject
 };
