@@ -3,6 +3,76 @@ const { checkRateLimit, incrementUsage } = require('./rateLimiter');
 const db = require('../../shared/mongodb/mongodb.client');
 const crypto = require('crypto');
 
+const exportProjectToGitHub = async (userId, projectId) => {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) throw new Error('GitHub export is not configured. Add GITHUB_TOKEN to the backend environment.');
+
+  const project = await db.project.findFirst({
+    where: { id: projectId, userId },
+    select: { name: true, files: true },
+  });
+  if (!project) throw new Error('Project not found');
+
+  const files = Array.isArray(project.files) ? project.files : [];
+  const safeFiles = files.filter((file) => (
+    file &&
+    typeof file.path === 'string' &&
+    typeof file.content === 'string' &&
+    file.path.length <= 200 &&
+    !file.path.startsWith('/') &&
+    !file.path.includes('..') &&
+    /^[a-zA-Z0-9_.-]+(?:\/([a-zA-Z0-9_.-]+))*\.[a-zA-Z0-9]+$/.test(file.path)
+  ));
+  if (!safeFiles.length || safeFiles.length !== files.length) {
+    throw new Error('Project files failed GitHub export validation');
+  }
+
+  const api = process.env.GITHUB_API_URL || 'https://api.github.com';
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `Bearer ${token}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+  const repositoryName = `${(project.name || 'genetix-project')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 70) || 'genetix-project'}-${Date.now().toString(36)}`;
+
+  const createResponse = await fetch(`${api}/user/repos`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      name: repositoryName,
+      description: `Website generated with Genetix: ${project.name || 'Untitled project'}`,
+      private: true,
+      auto_init: false,
+    }),
+  });
+  const created = await createResponse.json();
+  if (!createResponse.ok) {
+    throw new Error(created.message || 'GitHub repository could not be created');
+  }
+
+  for (const file of safeFiles) {
+    const uploadResponse = await fetch(`${api}/repos/${created.owner.login}/${created.name}/contents/${file.path.split('/').map(encodeURIComponent).join('/')}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        message: `Add ${file.path}`,
+        content: Buffer.from(file.content, 'utf8').toString('base64'),
+      }),
+    });
+    const uploaded = await uploadResponse.json();
+    if (!uploadResponse.ok) {
+      throw new Error(uploaded.message || `GitHub could not upload ${file.path}`);
+    }
+  }
+
+  return { repositoryUrl: created.html_url, repositoryName };
+};
+
 // Build prompt
 const buildPrompt = (userPrompt) => {
   return `
@@ -10,41 +80,40 @@ You are a full-stack developer. Generate a complete Next.js 15 + React 19 websit
 
 "${userPrompt}"
 
-Return ONLY the files in this EXACT format. Do not explain your answer, repeat these instructions, or use Markdown fences:
+CRITICAL INSTRUCTIONS:
+1. Generate ONLY these files:
+   - package.json
+   - app/layout.tsx
+   - app/page.tsx
+   - app/globals.css
+   - README.md
 
-[FILE: package.json]
-{
-  "name": "my-app",
-  "version": "1.0.0",
-  ...
-}
-[END_FILE]
+2. Use TAILWIND CSS V3 (NOT V4). In package.json use:
+   "tailwindcss": "^3.4.0",
+   "postcss": "^8.4.0",
+   "autoprefixer": "^10.4.0"
 
-[FILE: app/page.tsx]
-import ...
-export default function Home() { ... }
-[END_FILE]
+3. In app/globals.css use ONLY these three lines at the top:
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
 
-[FILE: app/layout.tsx]
-...
-[END_FILE]
+4. DO NOT use:
+   - @import "tailwindcss"
+   - @theme inline
+   - @custom-variant
+   - Any V4-specific syntax
 
-[FILE: README.md]
-# My App
-...
-[END_FILE]
+5. DO NOT add custom CSS @layer rules that might conflict.
 
-Make it production-ready with:
-- Next.js 15 + React 19
-- TypeScript
-- Tailwind CSS
-- Proper folder structure
-- Error handling
+6. Use EXACTLY this format for each file:
+   [FILE: app/page.tsx]
+   <file content here>
+   [END_FILE]
 
-ONLY return files with [FILE: path] and [END_FILE] markers. Use real paths such as app/page.tsx; never use the literal placeholder path.
+Return ONLY the files with [FILE] and [END_FILE] markers. No extra text.
 `;
 };
-
 // Parse AI response into files
 const parseFiles = (text) => {
   const files = [];
@@ -76,6 +145,34 @@ const parseFiles = (text) => {
   }
 
   return files;
+};
+
+const sanitizeCss = (files) => {
+  return files.map(file => {
+    if (file.path === 'app/globals.css' || file.path.endsWith('.css')) {
+      let content = file.content;
+      
+      // Remove Tailwind V4 import
+      content = content.replace(/@import\s+["']tailwindcss["']\s*;/g, '');
+      
+      // Remove @theme inline block
+      content = content.replace(/@theme\s+inline\s*\{[^}]*\}/g, '');
+      
+      // Remove @custom-variant
+      content = content.replace(/@custom-variant[^;]*;/g, '');
+      
+      // Remove @plugin
+      content = content.replace(/@plugin[^;]*;/g, '');
+      
+      // Ensure V3 directives at top
+      if (!content.includes('@tailwind base')) {
+        content = `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n${content}`;
+      }
+      
+      return { ...file, content: content.trim() };
+    }
+    return file;
+  });
 };
 
 const createUserProvider = ({ provider = 'openai', apiKey }) => {
@@ -118,6 +215,7 @@ const createUserProvider = ({ provider = 'openai', apiKey }) => {
 };
 
 // Generate website with fallback
+// Generate website with fallback
 const generateWebsite = async (userId, userPrompt, userProvider) => {
   // Check rate limit
   const rateCheck = await checkRateLimit(userId);
@@ -132,22 +230,28 @@ const generateWebsite = async (userId, userPrompt, userProvider) => {
     ? [createUserProvider(userProvider)]
     : providers;
   for (const provider of activeProviders) {
+    console.log(`[AI] Trying provider: ${provider.name}${provider.model ? ` (${provider.model})` : ''}`);
     try {
       const code = await provider.generate(provider.client, prompt);
       if (typeof code !== 'string' || !code.trim()) {
         throw new Error('Provider returned an empty response');
       }
       
-      // Increment usage
-      await incrementUsage(userId);
-      
       // Parse files
-      const files = parseFiles(code);
+      let files = parseFiles(code);
+      files = sanitizeCss(files);  
       
-      if (files.length === 0) {
-        throw new Error('No files generated');
+      if (
+        files.length === 0 ||
+        !files.some((file) => file.path === 'package.json') ||
+        !files.some((file) => file.path === 'app/page.tsx' || file.path === 'app/page.jsx' || file.path === 'pages/index.tsx' || file.path === 'pages/index.jsx')
+      ) {
+        throw new Error('Provider returned an invalid website structure');
       }
 
+      await incrementUsage(userId);
+
+      console.log(`[AI] Provider succeeded: ${provider.name}${provider.model ? ` (${provider.model})` : ''}`);
       return {
         provider: provider.name,
         files,
@@ -155,6 +259,7 @@ const generateWebsite = async (userId, userPrompt, userProvider) => {
         generatedAt: new Date().toISOString()
       };
     } catch (error) {
+      console.log(`[AI] Provider failed: ${provider.name} - ${error instanceof Error ? error.message : 'Unknown provider error'}`);
       lastError = error;
       continue;
     }
@@ -353,6 +458,7 @@ ${selected.map((file) => `\n[FILE: ${file.path}]\n${file.content}\n[END_FILE]`).
 `;
 
   for (const provider of providers) {
+    console.log(`[AI Edit] Trying provider: ${provider.name}${provider.model ? ` (${provider.model})` : ''}`);
     try {
       const response = await provider.generate(provider.client, editPrompt);
       if (typeof response !== 'string' || !response.trim()) throw new Error('Empty response');
@@ -360,8 +466,10 @@ ${selected.map((file) => `\n[FILE: ${file.path}]\n${file.content}\n[END_FILE]`).
       if (!changedFiles.length) throw new Error('No valid files returned');
       const changedByPath = new Map(changedFiles.map((file) => [file.path, file]));
       const updatedFiles = files.map((file) => changedByPath.get(file.path) || file);
+      console.log(`[AI Edit] Provider succeeded: ${provider.name}${provider.model ? ` (${provider.model})` : ''}`);
       return updateProjectFiles(userId, projectId, updatedFiles, `AI edit: ${instruction}`);
     } catch (error) {
+      console.log(`[AI Edit] Provider failed: ${provider.name} - ${error instanceof Error ? error.message : 'Unknown provider error'}`);
     }
   }
   throw new Error('All AI providers failed to edit the project');
@@ -381,4 +489,5 @@ module.exports = {
   ,getAnalytics
   ,enableSharing
   ,getSharedProject
+  ,exportProjectToGitHub
 };

@@ -34,7 +34,7 @@ export default function LoginPage() {
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
-        <div className="text-white text-xl">Loading...</div>
+        <div className="flex flex-col items-center gap-4 text-white"><span className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-300/20 border-t-cyan-300" /><span className="text-sm text-gray-300">Loading your account...</span></div>
       </div>
     );
   }

@@ -236,4 +236,13 @@ router.get('/projects/:projectId/download', authenticate, async (req, res) => {
   }
 });
 
+router.post('/projects/:projectId/github-export', authenticate, async (req, res) => {
+  try {
+    const result = await aiService.exportProjectToGitHub(req.userId, req.params.projectId);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'GitHub export failed' });
+  }
+});
+
 module.exports = router;

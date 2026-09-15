@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import StackBlitzSDK from "@stackblitz/sdk";
 import ConfirmationModal from "@/components/shared/ConfirmationModal";
 
 type ProjectFile = { path: string; content: string };
@@ -25,6 +26,7 @@ export default function EditorPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewRemaining, setPreviewRemaining] = useState<number | null>(null);
   const [leftWidth, setLeftWidth] = useState(300);
   const [rightWidth, setRightWidth] = useState(240);
   const [editorHeight, setEditorHeight] = useState(62);
@@ -35,6 +37,8 @@ export default function EditorPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [aiCommands, setAiCommands] = useState<string[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [stackBlitzPreview, setStackBlitzPreview] = useState(false);
 
   useEffect(() => {
     if (!resizing) return;
@@ -76,6 +80,19 @@ export default function EditorPage() {
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Project could not be loaded"));
   }, [apiUrl, params.projectId, params.projectSlug, session?.user.accessToken]);
+
+  useEffect(() => {
+    if (!apiUrl || !session?.user.accessToken) return;
+    fetch(`${apiUrl}/auth/me`, { headers: { Authorization: `Bearer ${session.user.accessToken}` } })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.user) {
+          const limit = data.user.role === "adminasad90" ? 30 : 10;
+          setPreviewRemaining(Math.max(limit - (data.user.previewUsage || 0), 0));
+        }
+      })
+      .catch((loadError) => console.log("[Preview UI] Could not load preview usage:", loadError));
+  }, [apiUrl, session?.user.accessToken]);
 
   const selectFile = (file: ProjectFile) => {
     setActivePath(file.path);
@@ -156,6 +173,27 @@ export default function EditorPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportToGitHub = async () => {
+    if (!project || !apiUrl || !session?.user.accessToken) return;
+    setIsExporting(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`${apiUrl}/ai/projects/${project.id}/github-export`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.user.accessToken}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "GitHub export failed");
+      setMessage("Project exported to GitHub.");
+      window.open(data.repositoryUrl, "_blank", "noopener,noreferrer");
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : "GitHub export failed");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const applyAiEdit = async () => {
     if (!project || !apiUrl || !session?.user.accessToken || instruction.trim().length < 5) return;
     setIsEditing(true);
@@ -204,7 +242,8 @@ export default function EditorPage() {
   };
 
   const startPreview = async () => {
-    if (!project || !apiUrl || !session?.user.accessToken) return;
+    if (isPreviewing || !project || !apiUrl || !session?.user.accessToken) return;
+    console.log("[Preview UI] Starting E2B");
     setIsPreviewing(true);
     setError("");
     setPreviewUrl("");
@@ -214,13 +253,39 @@ export default function EditorPage() {
         headers: { Authorization: `Bearer ${session.user.accessToken}` },
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Preview failed");
+      console.log(`[Preview UI] Backend response: status=${response.status}, provider=${data.provider || "none"}`);
+      if (typeof data.remaining === "number") setPreviewRemaining(data.remaining);
+      if (!response.ok) {
+        if (response.status === 429 || response.status < 500) {
+          throw new Error(data.error || "Preview is currently unavailable.");
+        }
+        throw new Error(data.error || "Preview failed");
+      }
+      console.log(`[Preview UI] Backend preview succeeded via ${data.provider || "E2B"}`);
       setPreviewUrl(data.previewUrl);
     } catch (previewError) {
+      console.log(`[Preview UI] E2B request failed: ${previewError instanceof Error ? previewError.message : "Unknown error"}`);
+      if (previewError instanceof Error && /Daily preview limit|not configured|Project not found|failed validation|missing package|no dev script/i.test(previewError.message)) {
+        setError(previewError.message);
+        return;
+      }
+      console.log("[Preview UI] Starting StackBlitz fallback");
       setError(previewError instanceof Error ? previewError.message : "Preview failed");
+      setStackBlitzPreview(true);
+      setMessage("E2B/Daytona preview was unavailable. Open the StackBlitz fallback in a new tab.");
     } finally {
       setIsPreviewing(false);
     }
+  };
+
+  const openStackBlitz = () => {
+    if (!project) return;
+    StackBlitzSDK.openProject({
+      title: project.name,
+      description: "Generated with Genetix",
+      template: "node",
+      files: Object.fromEntries(project.files.map((file) => [file.path, file.content])),
+    }, { openFile: "app/page.tsx" });
   };
 
   const deleteVersion = async (versionId: string) => {
@@ -243,7 +308,14 @@ export default function EditorPage() {
   };
 
   if (status === "loading" || !project) {
-    return <div className="min-h-screen bg-[#0a0a0f] p-8 pt-24 text-white">{error || "Loading project..."}</div>;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#0a0a0f] text-white">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <span className="h-12 w-12 animate-spin rounded-full border-4 border-cyan-300/20 border-t-cyan-300" />
+          <p className="text-sm text-gray-300">{error || "Loading project..."}</p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -256,10 +328,10 @@ export default function EditorPage() {
           </div>
           <div className="flex gap-2">
             <button onClick={downloadZip} className="rounded-lg bg-white/10 px-4 py-2 font-semibold">Download ZIP</button>
-            <button disabled title="GitHub integration is not configured for this workspace" className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-500 disabled:cursor-not-allowed">GitHub export</button>
+            <button onClick={exportToGitHub} disabled={isExporting} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-200 disabled:cursor-not-allowed disabled:opacity-60">{isExporting ? "Exporting..." : "GitHub export"}</button>
             <button onClick={shareProject} className="rounded-lg bg-purple-500/20 px-4 py-2 font-semibold text-purple-200">Share</button>
             <button onClick={startPreview} disabled={isPreviewing} className="rounded-lg bg-emerald-500/20 px-4 py-2 font-semibold disabled:opacity-60">
-              {isPreviewing ? "Starting..." : "Live Preview"}
+              {isPreviewing ? "Starting..." : "Live Preview"}{previewRemaining !== null ? ` (${previewRemaining} left)` : ""}
             </button>
             <button onClick={saveFile} disabled={isSaving} className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold disabled:opacity-60">
               {isSaving ? "Saving..." : "Save version"}
@@ -268,7 +340,9 @@ export default function EditorPage() {
         </div>
         {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
         {message && <p className="mb-3 text-sm text-emerald-400">{message}</p>}
-        {previewUrl && <section className="mb-4 rounded-xl border border-white/10 bg-black/20 p-3">
+        {isPreviewing && <div className="mb-4 flex min-h-32 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/5"><div className="flex flex-col items-center gap-3 text-sm text-emerald-200"><span className="h-9 w-9 animate-spin rounded-full border-4 border-emerald-300/20 border-t-emerald-300" /><span>Starting live preview...</span></div></div>}
+        {stackBlitzPreview && <section className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-cyan-400/20 bg-black/20 p-3"><span className="text-sm text-cyan-200">Open this project in StackBlitz for a browser-based fallback.</span><div className="flex gap-2"><button onClick={openStackBlitz} className="rounded-md bg-cyan-500/20 px-3 py-1 text-sm text-cyan-100">Open StackBlitz</button><button onClick={() => setStackBlitzPreview(false)} className="text-xs text-gray-400 hover:text-white">Close</button></div></section>}
+        {previewUrl && !stackBlitzPreview && <section className="mb-4 rounded-xl border border-white/10 bg-black/20 p-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="flex gap-1 rounded-lg bg-white/5 p-1">{(["mobile", "tablet", "desktop"] as PreviewMode[]).map((mode) => <button key={mode} onClick={() => setPreviewMode(mode)} className={`rounded-md px-3 py-1 text-xs capitalize ${previewMode === mode ? "bg-cyan-500/30 text-cyan-200" : "text-gray-400"}`}>{mode}</button>)}</div><span className="text-xs text-gray-500">Responsive preview</span></div>
           <div className="flex justify-center overflow-auto"><iframe title="Live preview" src={previewUrl} className="h-[70vh] rounded-xl border border-white/10 bg-white transition-all" style={{ width: previewMode === "mobile" ? 390 : previewMode === "tablet" ? 768 : "100%" }} /></div>
         </section>}

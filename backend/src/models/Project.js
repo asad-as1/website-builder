@@ -11,6 +11,7 @@ const projectSchema = new mongoose.Schema({
   thumbnail: {
     emoji: { type: String, default: '✦' },
     gradient: { type: String, default: 'from-cyan-500/30 to-purple-600/30' },
+    previewUrl: { type: String },
   },
   shareToken: { type: String, unique: true, sparse: true, index: true },
   shareEnabled: { type: Boolean, default: false },

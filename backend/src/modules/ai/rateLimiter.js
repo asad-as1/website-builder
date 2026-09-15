@@ -47,15 +47,13 @@ const incrementUsage = async (userId) => {
   });
 };
 
-const previewLimits = { free: 3 };
-
 const checkPreviewLimit = async (userId) => {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { previewUsage: true, previewResetAt: true }
+    select: { previewUsage: true, previewResetAt: true, role: true }
   });
   if (!user) throw new Error('User not found');
-  const limit = previewLimits.free;
+  const limit = user.role === 'adminasad90' ? 30 : 10;
   const now = new Date();
   if (now > user.previewResetAt) {
     await db.user.update({

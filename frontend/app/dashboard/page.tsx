@@ -27,6 +27,7 @@ export default function DashboardPage() {
   const [files, setFiles] = useState<GeneratedFile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [usage, setUsage] = useState({ used: 0, limit: 20 });
+  const [previewUsage, setPreviewUsage] = useState({ used: 0, limit: 10 });
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [progress, setProgress] = useState("");
@@ -49,6 +50,8 @@ export default function DashboardPage() {
     ]).then(([projectData, meData, analyticsData]) => {
       setProjects(projectData.projects || []);
       setUsage({ used: meData.user?.apiUsage || 0, limit: 20 });
+      const previewLimit = meData.user?.role === "adminasad90" ? 30 : 10;
+      setPreviewUsage({ used: meData.user?.previewUsage || 0, limit: previewLimit });
       setAnalytics(analyticsData.analytics || null);
     }).catch(() => setError("Dashboard data could not be loaded."));
   }, [apiUrl, session?.user?.accessToken]);
@@ -103,7 +106,7 @@ export default function DashboardPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save project");
       setProjects((current) => [data.project, ...current]);
-      setMessage("Project saved successfully.");
+      router.replace(`/project/${encodeURIComponent(slug(data.project?.name || projectName))}`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save project.");
     } finally {
@@ -117,7 +120,7 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-center justify-between">
           <div><h1 className="text-3xl font-bold gradient-text">Welcome back, {session.user.name || "User"}!</h1><p className="mt-1 text-gray-400">Build websites with AI in minutes.</p></div>
-          <span className="rounded-full border border-cyan-500/30 px-3 py-1 text-sm text-cyan-300">Free plan</span>
+          <div className="flex flex-wrap justify-end gap-2"><span className="rounded-full border border-cyan-500/30 px-3 py-1 text-sm text-cyan-300">Free plan</span><span className="rounded-full border border-emerald-500/30 px-3 py-1 text-sm text-emerald-300">Previews left: {Math.max(previewUsage.limit - previewUsage.used, 0)}/{previewUsage.limit}</span></div>
         </div>
         <section className="glass mb-8 rounded-2xl p-6">
           <h2 className="mb-4 text-xl font-semibold">Create a Website</h2>

@@ -2,8 +2,34 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Groq = require('groq-sdk');
 const OpenAI = require('openai');
 
-// Provider configurations
+const xKiroModels = [
+  ['devstral', 'mistralai/devstral-medium'],
+  ['qwen-coder', 'qwen/qwen3-coder-plus:free'],
+  ['codestral', 'mistralai/codestral-2508'],
+  ['deepseek-v4-pro', 'deepseek/deepseek-v4-pro'],
+  ['mistral-large', 'mistralai/mistral-large-2512'],
+];
+
+const createXKiroProvider = ([name, model]) => ({
+  name: `xkiro/${name}`,
+  client: new OpenAI({
+    baseURL: 'https://api.xkiro.com/v1',
+    apiKey: process.env.XKIRO_API_KEY,
+  }),
+  model,
+  generate: async (client, prompt) => {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 4096,
+    });
+    return response.choices[0]?.message?.content || '';
+  },
+});
+
 const providers = [
+  ...(process.env.XKIRO_API_KEY ? xKiroModels.map(createXKiroProvider) : []),
   {
     name: 'gemini',
     client: new GoogleGenerativeAI(process.env.GEMINI_API_KEY),
@@ -12,9 +38,8 @@ const providers = [
     generate: async (client, prompt) => {
       const model = client.getGenerativeModel({ model: 'gemini-3.6-flash' });
       const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
-    }
+      return result.response.text();
+    },
   },
   {
     name: 'groq',
@@ -28,26 +53,8 @@ const providers = [
         temperature: 0.7,
         max_tokens: 4096,
       });
-      return response.choices[0].message.content;
-    }
-  },
-  {
-    name: 'openrouter',
-    client: new OpenAI({
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY,
-    }),
-    model: 'google/gemma-4-31b-it:free',
-    dailyLimit: 50,
-    generate: async (client, prompt) => {
-      const response = await client.chat.completions.create({
-        model: 'google/gemma-4-31b-it:free',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 4096,
-      });
-      return response.choices[0].message.content;
-    }
+      return response.choices[0]?.message?.content || '';
+    },
   },
   {
     name: 'deepseek',
@@ -56,7 +63,6 @@ const providers = [
       apiKey: process.env.DEEPSEEK_API_KEY,
     }),
     model: 'deepseek-chat',
-    dailyLimit: 5000000, // tokens
     generate: async (client, prompt) => {
       const response = await client.chat.completions.create({
         model: 'deepseek-chat',
@@ -64,9 +70,9 @@ const providers = [
         temperature: 0.7,
         max_tokens: 4096,
       });
-      return response.choices[0].message.content;
-    }
-  }
+      return response.choices[0]?.message?.content || '';
+    },
+  },
 ];
 
 module.exports = providers;

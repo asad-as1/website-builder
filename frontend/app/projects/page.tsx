@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import ConfirmationModal from "@/components/shared/ConfirmationModal";
 
-type Project = { id: string; name: string; prompt: string; status: string; thumbnail?: { emoji?: string; gradient?: string }; updatedAt?: string };
+type Project = { id: string; name: string; prompt: string; status: string; thumbnail?: { emoji?: string; gradient?: string; previewUrl?: string }; updatedAt?: string };
 const slug = (name: string) => name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";
 
 export default function ProjectsPage() {
@@ -69,7 +69,7 @@ export default function ProjectsPage() {
           {visibleProjects.map((project) => (
             <article key={project.id} className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:border-cyan-400/50">
               <Link href={`/project/${slug(project.name)}`} className="block">
-                <div className={`mb-4 flex h-24 items-center justify-center rounded-xl bg-gradient-to-br ${project.thumbnail?.gradient || "from-cyan-500/20 to-purple-600/20"}`}><span className="text-4xl">{project.thumbnail?.emoji || "✦"}</span></div>
+                <div className={`relative mb-4 flex h-24 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br ${project.thumbnail?.gradient || "from-cyan-500/20 to-purple-600/20"}`}>{project.thumbnail?.previewUrl ? <iframe title={`${project.name} preview thumbnail`} src={project.thumbnail.previewUrl} loading="lazy" className="pointer-events-none h-[520px] w-[920px] origin-center scale-[0.18] border-0 bg-white" /> : <span className="text-4xl">{project.thumbnail?.emoji || "✦"}</span>}</div>
                 <h2 className="font-semibold text-cyan-300">{project.name}</h2>
                 <p className="mt-2 line-clamp-2 text-sm text-gray-400">{project.prompt}</p>
                 <p className="mt-4 text-xs text-gray-500">{project.status}</p>

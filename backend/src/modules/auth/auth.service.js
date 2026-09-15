@@ -211,6 +211,7 @@ const getMe = async (userId) => {
       avatar: true,
       role: true,
       apiUsage: true,
+      previewUsage: true,
       emailVerified: true,
       isActive: true,
       createdAt: true
