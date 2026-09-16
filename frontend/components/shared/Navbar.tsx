@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Menu, X, LogOut, LayoutDashboard, FolderGit2, User, UserCircle, WandSparkles, Eye } from "lucide-react";
+import { Menu, X, LogOut, LayoutDashboard, FolderGit2, User, UserCircle, WandSparkles, Eye , Send, MessageSquare } from "lucide-react";
 import LogoutModal from "./LogoutModal"; 
 
 export default function Navbar() {
@@ -38,7 +38,9 @@ export default function Navbar() {
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { href: "/projects", label: "Projects", icon: FolderGit2 },
         { href: "/profile", label: "Profile", icon: UserCircle },
+        { href: "/contact/history", label: "My Requests", icon: MessageSquare },
         ...(session?.user?.role === "adminasad90" ? [{ href: "/admin", label: "Admin", icon: UserCircle }] : []),
+        { href: "/contact", label: "Contact", icon: Send },
       ]
     : [];
 

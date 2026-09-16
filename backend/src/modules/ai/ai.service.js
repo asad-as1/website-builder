@@ -427,7 +427,7 @@ const deleteProjectVersion = async (userId, projectId, versionId) => {
   await db.projectVersion.delete({ where: { id: versionId } });
 };
 
-const updateProjectFiles = async (userId, projectId, files, message) => {
+const updateProjectFiles = async (userId, projectId, files, message, createVersion = true) => {
   const project = await db.project.findFirst({ where: { id: projectId, userId } });
   if (!project) throw new Error('Project not found');
   if (!Array.isArray(files) || files.length === 0) throw new Error('Files are required');
@@ -437,9 +437,14 @@ const updateProjectFiles = async (userId, projectId, files, message) => {
       where: { id: projectId },
       data: { files, updatedAt: new Date() }
     });
-    await tx.projectVersion.create({
-      data: { projectId, userId, files, message: message || 'Manual edit' }
-    });
+    
+    // ✅ Only create version if createVersion is true
+    if (createVersion) {
+      await tx.projectVersion.create({
+        data: { projectId, userId, files, message: message || 'Manual edit' }
+      });
+    }
+    
     return result;
   });
   return getProject(userId, projectId);

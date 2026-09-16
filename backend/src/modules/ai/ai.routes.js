@@ -140,14 +140,16 @@ router.delete('/projects/:projectId', authenticate, async (req, res) => {
 });
 
 // Update files and create a new version
+// Update files (optionally create a new version)
 router.put('/projects/:projectId/files', authenticate, async (req, res) => {
   try {
-    const { files, message } = req.body;
+    const { files, message, createVersion } = req.body;
     const project = await aiService.updateProjectFiles(
       req.userId,
       req.params.projectId,
       files,
-      message
+      message,
+      createVersion !== false  
     );
     res.json({ project });
   } catch (error) {

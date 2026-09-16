@@ -100,7 +100,8 @@ export default function EditorPage() {
     setIsDirty(false);
   };
 
-  const saveFile = async () => {
+  // ✅ saveFile with createVersion flag
+  const saveFile = async (createVersion: boolean = true) => {
     if (!project || !apiUrl || !session?.user.accessToken) return;
     const files = project.files.map((file) =>
       file.path === activePath ? { ...file, content } : file
@@ -115,12 +116,16 @@ export default function EditorPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.user.accessToken}`,
         },
-        body: JSON.stringify({ files, message: `Edited ${activePath}` }),
+        body: JSON.stringify({ 
+          files, 
+          message: createVersion ? `Edited ${activePath}` : "Autosaved",
+          createVersion  // ✅ Backend ko batao version banana hai ya nahi
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save file");
       setProject((current) => current ? { ...current, ...data.project, files } : current);
-      setMessage("File saved and version created.");
+      setMessage(createVersion ? "File saved and version created." : "Autosaved.");
       setIsDirty(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save file");
@@ -129,13 +134,13 @@ export default function EditorPage() {
     }
   };
 
+  // ✅ Autosave — no version creation, 3 second debounce
   useEffect(() => {
     if (!isDirty || !project || !activePath) return;
-    const timer = window.setTimeout(() => { void saveFile(); }, 1400);
+    const timer = window.setTimeout(() => { void saveFile(false); }, 3000);
     return () => window.clearTimeout(timer);
-    // saveFile intentionally captures the current file/project snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePath, content, isDirty, project?.id]); // Autosave only after a deliberate editor change.
+  }, [activePath, content, isDirty, project?.id]);
 
   const rollback = async (versionId: string) => {
     if (!project || !apiUrl || !session?.user.accessToken) return;
@@ -172,27 +177,6 @@ export default function EditorPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
-
-  // const exportToGitHub = async () => {
-  //   if (!project || !apiUrl || !session?.user.accessToken) return;
-  //   setIsExporting(true);
-  //   setError("");
-  //   setMessage("");
-  //   try {
-  //     const response = await fetch(`${apiUrl}/ai/projects/${project.id}/github-export`, {
-  //       method: "POST",
-  //       headers: { Authorization: `Bearer ${session.user.accessToken}` },
-  //     });
-  //     const data = await response.json();
-  //     if (!response.ok) throw new Error(data.error || "GitHub export failed");
-  //     setMessage("Project exported to GitHub.");
-  //     window.open(data.repositoryUrl, "_blank", "noopener,noreferrer");
-  //   } catch (exportError) {
-  //     setError(exportError instanceof Error ? exportError.message : "GitHub export failed");
-  //   } finally {
-  //     setIsExporting(false);
-  //   }
-  // };
 
   const applyAiEdit = async () => {
     if (!project || !apiUrl || !session?.user.accessToken || instruction.trim().length < 5) return;
@@ -328,12 +312,11 @@ export default function EditorPage() {
           </div>
           <div className="flex gap-2">
             <button onClick={downloadZip} className="rounded-lg bg-white/10 px-4 py-2 font-semibold">Download ZIP</button>
-            {/* <button onClick={exportToGitHub} disabled={isExporting} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-200 disabled:cursor-not-allowed disabled:opacity-60">{isExporting ? "Exporting..." : "GitHub export"}</button> */}
             <button onClick={shareProject} className="rounded-lg bg-purple-500/20 px-4 py-2 font-semibold text-purple-200">Share</button>
             <button onClick={startPreview} disabled={isPreviewing} className="rounded-lg bg-emerald-500/20 px-4 py-2 font-semibold disabled:opacity-60">
               {isPreviewing ? "Starting..." : "Live Preview"}{previewRemaining !== null ? ` (${previewRemaining} left)` : ""}
             </button>
-            <button onClick={saveFile} disabled={isSaving} className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold disabled:opacity-60">
+            <button onClick={() => saveFile(true)} disabled={isSaving} className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold disabled:opacity-60">
               {isSaving ? "Saving..." : "Save version"}
             </button>
           </div>

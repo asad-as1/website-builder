@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import AdminContactPanel from "./AdminContactPanel";
 
 type AdminUser = {
   id: string;
@@ -21,6 +22,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState("");
+
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
     if (!session?.user.accessToken || session.user.role !== "adminasad90")
@@ -42,21 +44,30 @@ export default function AdminPage() {
         ),
       );
   }, [router, session?.user.accessToken, session?.user.role, status]);
+
   if (status === "loading" || !session) return null;
+
   if (session.user.role !== "adminasad90")
     return (
       <main className="min-h-screen bg-[#0a0a0f] p-8 pt-28 text-white">
         <h1 className="text-2xl font-bold">Access denied</h1>
       </main>
     );
+
   return (
     <main className="min-h-screen bg-[#0a0a0f] p-8 pt-28 text-white">
       <div className="mx-auto max-w-7xl">
-        <h1 className="text-3xl font-bold">Admin users</h1>
+        {/* ✅ Contact Requests Panel — users table ke upar */}
+        <AdminContactPanel />
+
+        {/* Users Table */}
+        <h1 className="text-3xl font-bold mt-10">Admin users</h1>
         <p className="mt-2 text-gray-400">
           Account activity and workspace usage.
         </p>
+
         {error && <p className="mt-4 text-red-400">{error}</p>}
+
         <div className="mt-8 overflow-x-auto rounded-2xl border border-white/10">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-white/5 text-gray-400">
