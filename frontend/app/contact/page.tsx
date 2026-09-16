@@ -1,13 +1,110 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
-import { Send, CheckCircle, AlertCircle, History, ChevronDown } from "lucide-react";
+import { Send, CheckCircle, AlertCircle, History, ChevronDown, Check } from "lucide-react";
 
 type Project = { id: string; name: string };
+
+type DropdownOption = {
+  value: string;
+  label: string;
+};
+
+// Reusable custom dropdown — replaces the native <select> with a themed,
+// keyboard/click-outside aware listbox. Purely presentational: it reports
+// the chosen value the same way a native select's onChange would.
+function CustomDropdown({
+  value,
+  options,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  options: DropdownOption[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`w-full px-4 py-3 bg-white/5 border rounded-lg text-left flex items-center justify-between gap-2 transition-colors ${
+          open
+            ? "border-cyan-400 bg-white/[0.07]"
+            : "border-white/10 hover:border-white/20 hover:bg-white/[0.07]"
+        }`}
+      >
+        <span className={selected ? "text-white" : "text-gray-500"}>
+          {selected ? selected.label : placeholder || "Select…"}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute z-20 mt-2 w-full max-h-64 overflow-auto rounded-lg border border-white/10 bg-[#14141c] shadow-xl shadow-black/40 backdrop-blur-xl py-1"
+        >
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <li key={opt.value || "__empty"} role="option" aria-selected={isSelected}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full px-4 py-2.5 flex items-center justify-between gap-2 text-left text-sm transition-colors ${
+                    isSelected
+                      ? "bg-gradient-to-r from-cyan-500/20 to-purple-600/20 text-white"
+                      : "text-gray-300 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected && <Check className="w-4 h-4 text-cyan-300 shrink-0" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function ContactPage() {
   const { data: session, status } = useSession();
@@ -73,6 +170,24 @@ export default function ContactPage() {
     );
   }
 
+  const projectOptions: DropdownOption[] = [
+    { value: "", label: "-- General Request --" },
+    ...projects.map((p) => ({ value: p.id, label: p.name })),
+  ];
+
+  const budgetOptions: DropdownOption[] = [
+    { value: "₹500 - ₹1000", label: "₹500 - ₹1000" },
+    { value: "₹1000 - ₹5000", label: "₹1000 - ₹5000" },
+    { value: "₹5000 - ₹10000", label: "₹5000 - ₹10000" },
+    { value: "₹10000+", label: "₹10000+" },
+  ];
+
+  const priorityOptions: DropdownOption[] = [
+    { value: "low", label: "🟢 Low" },
+    { value: "normal", label: "🟡 Normal" },
+    { value: "urgent", label: "🔴 Urgent" },
+  ];
+
   return (
     <main className="min-h-screen bg-[#0a0a0f] text-white p-4 pt-24">
       <div className="max-w-3xl mx-auto">
@@ -125,29 +240,11 @@ export default function ContactPage() {
             <label className="block text-sm text-gray-400 mb-2">
               Select Project (optional)
             </label>
-            <div className="relative">
-              <select
-                value={formData.projectId}
-                onChange={(e) =>
-                  setFormData({ ...formData, projectId: e.target.value })
-                }
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white appearance-none focus:outline-none focus:border-cyan-400 cursor-pointer pr-10"
-              >
-                <option value="" className="bg-[#1a1a2e] text-white">
-                  -- General Request --
-                </option>
-                {projects.map((p) => (
-                  <option
-                    key={p.id}
-                    value={p.id}
-                    className="bg-[#1a1a2e] text-white"
-                  >
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
+            <CustomDropdown
+              value={formData.projectId}
+              options={projectOptions}
+              onChange={(val) => setFormData({ ...formData, projectId: val })}
+            />
           </div>
 
           {/* Changes */}
@@ -173,46 +270,21 @@ export default function ContactPage() {
               <label className="block text-sm text-gray-400 mb-2">
                 Budget Range *
               </label>
-              <div className="relative">
-                <select
-                  value={formData.budget}
-                  onChange={(e) =>
-                    setFormData({ ...formData, budget: e.target.value })
-                  }
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white appearance-none focus:outline-none focus:border-cyan-400 cursor-pointer pr-10"
-                >
-                  <option className="bg-[#1a1a2e] text-white">₹500 - ₹1000</option>
-                  <option className="bg-[#1a1a2e] text-white">₹1000 - ₹5000</option>
-                  <option className="bg-[#1a1a2e] text-white">₹5000 - ₹10000</option>
-                  <option className="bg-[#1a1a2e] text-white">₹10000+</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
+              <CustomDropdown
+                value={formData.budget}
+                options={budgetOptions}
+                onChange={(val) => setFormData({ ...formData, budget: val })}
+              />
             </div>
             <div>
               <label className="block text-sm text-gray-400 mb-2">
                 Priority
               </label>
-              <div className="relative">
-                <select
-                  value={formData.priority}
-                  onChange={(e) =>
-                    setFormData({ ...formData, priority: e.target.value })
-                  }
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white appearance-none focus:outline-none focus:border-cyan-400 cursor-pointer pr-10"
-                >
-                  <option value="low" className="bg-[#1a1a2e] text-white">
-                    🟢 Low
-                  </option>
-                  <option value="normal" className="bg-[#1a1a2e] text-white">
-                    🟡 Normal
-                  </option>
-                  <option value="urgent" className="bg-[#1a1a2e] text-white">
-                    🔴 Urgent
-                  </option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
+              <CustomDropdown
+                value={formData.priority}
+                options={priorityOptions}
+                onChange={(val) => setFormData({ ...formData, priority: val })}
+              />
             </div>
           </div>
 

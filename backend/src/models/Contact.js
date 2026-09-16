@@ -10,8 +10,25 @@ const contactSchema = new mongoose.Schema({
   budget: { type: String, required: true },
   priority: { type: String, enum: ['low', 'normal', 'urgent'], default: 'normal' },
   status: { type: String, enum: ['pending', 'in-progress', 'completed'], default: 'pending' },
-  adminReply: { type: String, default: '' },
-  repliedAt: { type: Date, default: null },
+  
+  messages: [{
+    clientId: { type: String, default: null },
+    sender: { type: String, enum: ['user', 'admin'], required: true },
+    text: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+    read: { type: Boolean, default: false },
+    status: { 
+      type: String, 
+      enum: ['sending', 'sent', 'delivered', 'read'], 
+      default: 'sent' 
+    },
+  }],
+  
+  lastMessage: { type: String, default: '' },
+  lastMessageAt: { type: Date, default: null },
+  unreadByAdmin: { type: Number, default: 0 },
+  unreadByUser: { type: Number, default: 0 },
+  
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import AdminContactPanel from "./AdminContactPanel";
+import Link from "next/link";
+import { MessageSquare } from "lucide-react";
 
 type AdminUser = {
   id: string;
@@ -57,6 +59,19 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#0a0a0f] p-8 pt-28 text-white">
       <div className="mx-auto max-w-7xl">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+            <p className="text-gray-400 mt-2">Manage users and requests</p>
+          </div>
+          <Link
+            href="/admin/chat"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-600 font-semibold hover:scale-105 transition"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Open Chats
+          </Link>
+        </div>
         {/* ✅ Contact Requests Panel — users table ke upar */}
         <AdminContactPanel />
 
@@ -88,9 +103,7 @@ export default function AdminPage() {
                   <td className="p-4 text-gray-500">{index + 1}</td>
                   <td className="p-4">{user.name || "—"}</td>
                   <td className="p-4">{user.email}</td>
-                  <td className="p-4 text-cyan-300">
-                    {user.projectCount}
-                  </td>
+                  <td className="p-4 text-cyan-300">{user.projectCount}</td>
                   <td className="p-4">{user.apiUsage}/20</td>
                   <td className="p-4 text-emerald-300">{user.apiRemaining}</td>
                   <td

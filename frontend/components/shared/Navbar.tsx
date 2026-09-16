@@ -33,16 +33,30 @@ export default function Navbar() {
     setHasAvatarError(false);
   }, [session?.user?.image]);
 
-  const navLinks = session
-    ? [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/projects", label: "Projects", icon: FolderGit2 },
-        { href: "/profile", label: "Profile", icon: UserCircle },
+  const isAdmin = session?.user?.role !== "user";
+
+const navLinks = session
+  ? [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/projects", label: "Projects", icon: FolderGit2 },
+      
+
+      ...(isAdmin ? [
+        { href: "/admin", label: "Admin", icon: UserCircle },
+        { href: "/admin/chat", label: "Chats", icon: MessageSquare },
+      ] : []),
+
+
+      { href: "/profile", label: "Profile", icon: UserCircle },
+      
+      ...(!isAdmin ? [
+        { href: "/chat", label: "Chats", icon: MessageSquare },
         { href: "/contact/history", label: "My Requests", icon: MessageSquare },
-        ...(session?.user?.role === "adminasad90" ? [{ href: "/admin", label: "Admin", icon: UserCircle }] : []),
         { href: "/contact", label: "Contact", icon: Send },
-      ]
-    : [];
+      ] : []),
+      
+    ]
+  : [];
 
   const getUserAvatar = () => {
     if (session?.user?.image && !hasAvatarError) {

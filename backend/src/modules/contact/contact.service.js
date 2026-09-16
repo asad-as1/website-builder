@@ -15,6 +15,14 @@ const submitContact = async (userId, { projectId, changes, budget, priority }) =
     if (project) projectName = project.name;
   }
 
+  // ✅ Initial message as first chat message
+  const initialMessage = {
+    sender: 'user',
+    text: changes,
+    timestamp: new Date(),
+    read: false,
+  };
+
   const contact = await db.contact.create({
     data: {
       userId,
@@ -26,9 +34,15 @@ const submitContact = async (userId, { projectId, changes, budget, priority }) =
       budget,
       priority: priority || 'normal',
       status: 'pending',
+      messages: [initialMessage],
+      lastMessage: changes,
+      lastMessageAt: new Date(),
+      unreadByAdmin: 1,
+      unreadByUser: 0,
     },
   });
 
+  // Send email to admin
   await emailService.sendContactEmail({
     name: user.name,
     email: user.email,

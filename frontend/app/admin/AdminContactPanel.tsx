@@ -9,6 +9,7 @@ import {
   Trash2,
   RefreshCw,
   X,
+  AlertTriangle,
 } from "lucide-react";
 
 type Contact = {
@@ -46,6 +47,10 @@ export default function AdminContactPanel() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isReplying, setIsReplying] = useState(false);
+  
+  // ✅ Delete confirmation modal state
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchContacts = async () => {
     if (!session?.user.accessToken) return;
@@ -101,16 +106,21 @@ export default function AdminContactPanel() {
     }
   };
 
-  const handleDelete = async (contactId: string) => {
-    if (!confirm("Delete this contact request?") || !session?.user.accessToken) return;
+  // ✅ Delete confirmation — modal se confirm karo
+  const confirmDelete = async () => {
+    if (!deleteTarget || !session?.user.accessToken) return;
+    setIsDeleting(true);
     try {
       await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/contact/${contactId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/contact/${deleteTarget.id}`,
         { headers: { Authorization: `Bearer ${session.user.accessToken}` } }
       );
+      setDeleteTarget(null);
       await fetchContacts();
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to delete");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -235,7 +245,7 @@ export default function AdminContactPanel() {
                           <Send className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(contact.id)}
+                          onClick={() => setDeleteTarget(contact)}  // ✅ Modal open karo
                           className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
                           title="Delete"
                         >
@@ -315,6 +325,61 @@ export default function AdminContactPanel() {
                   ) : (
                     <>
                       <Send className="w-4 h-4" /> Send Reply
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => !isDeleting && setDeleteTarget(null)}
+          />
+
+          {/* Modal */}
+          <div className="relative glass p-8 rounded-2xl w-full max-w-md mx-4 border border-white/10">
+            <div className="text-center">
+              {/* Warning Icon */}
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-8 h-8 text-red-400" />
+              </div>
+
+              <h3 className="text-xl font-semibold text-white">Delete this request?</h3>
+              <p className="text-gray-400 mt-2 text-sm">
+                <span className="text-white font-medium">{deleteTarget.name}</span>'s request
+                {deleteTarget.projectName && ` for "${deleteTarget.projectName}"`} will be
+                permanently deleted. This action cannot be undone.
+              </p>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 border border-white/10 rounded-lg text-gray-300 hover:bg-white/5 transition disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-400/20 border-t-red-400" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete
                     </>
                   )}
                 </button>
