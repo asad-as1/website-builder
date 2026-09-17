@@ -13,6 +13,8 @@ const projectSchema = new mongoose.Schema({
     gradient: { type: String, default: 'from-cyan-500/30 to-purple-600/30' },
     previewUrl: { type: String },
   },
+  thumbnailImage: { type: String, default: null },
+  thumbnailPublicId: { type: String, default: null }, // for Cloudinary delete
   shareToken: { type: String, unique: true, sparse: true, index: true },
   shareEnabled: { type: Boolean, default: false },
   framework: { type: String, default: 'nextjs' },

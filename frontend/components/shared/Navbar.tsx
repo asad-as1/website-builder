@@ -46,15 +46,13 @@ const navLinks = session
         { href: "/admin/chat", label: "Chats", icon: MessageSquare },
       ] : []),
 
-
-      { href: "/profile", label: "Profile", icon: UserCircle },
-      
       ...(!isAdmin ? [
         { href: "/chat", label: "Chats", icon: MessageSquare },
         { href: "/contact/history", label: "My Requests", icon: MessageSquare },
         { href: "/contact", label: "Contact", icon: Send },
       ] : []),
-      
+
+      { href: "/profile", label: "Profile", icon: UserCircle },
     ]
   : [];
 

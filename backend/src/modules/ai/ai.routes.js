@@ -3,6 +3,19 @@ const aiService = require('./ai.service');
 const { authenticate } = require('../auth/auth.middleware');
 const db = require('../../shared/mongodb/mongodb.client');
 const archiverModule = require('archiver');
+const multer = require('multer');
+const cloudinary = require('../../shared/cloudinary/cloudinary.client');
+
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only images allowed'), false);
+  },
+});
+
 
 // Generate website
 router.post('/generate', authenticate, async (req, res) => {
@@ -67,7 +80,8 @@ router.get('/projects', authenticate, async (req, res) => {
         status: true,
         createdAt: true,
         updatedAt: true,
-        thumbnail: true
+        thumbnail: true,
+        thumbnailImage: true,
       }
     });
 
@@ -235,6 +249,61 @@ router.get('/projects/:projectId/download', authenticate, async (req, res) => {
     await archive.finalize();
   } catch (error) {
     if (!res.headersSent) res.status(500).json({ error: `Failed to create ZIP: ${error.message}` });
+  }
+});
+
+// ✅ NEW: Update project thumbnail (with old image delete)
+router.put('/projects/:projectId/thumbnail', authenticate, upload.single('thumbnail'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image provided' });
+    }
+
+    const project = await db.project.findFirst({
+      where: { id: req.params.projectId, userId: req.userId },
+      select: { id: true, thumbnailPublicId: true },
+    });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // ✅ Delete old thumbnail from Cloudinary
+    if (project.thumbnailPublicId) {
+      try {
+        await cloudinary.uploader.destroy(project.thumbnailPublicId);
+        console.log(`[Thumbnail] Deleted old: ${project.thumbnailPublicId}`);
+      } catch (err) {
+        console.log(`[Thumbnail] Old delete failed: ${err.message}`);
+      }
+    }
+
+    // ✅ Upload new thumbnail
+    const uploadResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'genetix/thumbnails',
+          public_id: `project_${project.id}_${Date.now()}`,
+          resource_type: 'image',
+        },
+        (err, res) => (err ? reject(err) : resolve(res)),
+      );
+      stream.end(req.file.buffer);
+    });
+
+    // ✅ Update DB
+    const updated = await db.project.update({
+      where: { id: project.id },
+      data: {
+        thumbnailImage: uploadResult.secure_url,
+        thumbnailPublicId: uploadResult.public_id,
+      },
+    });
+
+    res.json({
+      message: 'Thumbnail updated',
+      thumbnailImage: updated.thumbnailImage,
+    });
+  } catch (error) {
+    console.error('[Thumbnail] Error:', error.message);
+    res.status(500).json({ error: error.message || 'Thumbnail update failed' });
   }
 });
 
