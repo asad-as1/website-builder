@@ -2,7 +2,7 @@ const db = require('../../shared/mongodb/mongodb.client');
 const emailService = require('../../shared/email/email.service');
 
 // ==================== SUBMIT CONTACT ====================
-const submitContact = async (userId, { projectId, changes, budget, priority }) => {
+const submitContact = async (userId, { projectId, changes, budget, priority, attachment }) => {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
 
@@ -15,13 +15,41 @@ const submitContact = async (userId, { projectId, changes, budget, priority }) =
     if (project) projectName = project.name;
   }
 
-  // ✅ Initial message as first chat message
-  const initialMessage = {
+  // ✅ Build initial messages array
+  const initialMessages = [];
+
+  // ✅ Message 1: Text description
+  initialMessages.push({
     sender: 'user',
+    type: 'text',
     text: changes,
     timestamp: new Date(),
     read: false,
-  };
+    status: 'sent',
+  });
+
+  // ✅ Message 2: Attachment (if exists)
+  if (attachment?.url) {
+    initialMessages.push({
+      sender: 'user',
+      type: attachment.type || 'document',
+      text: '', // caption empty
+      fileUrl: attachment.url,
+      fileName: attachment.fileName,
+      fileSize: attachment.fileSize,
+      mimeType: attachment.mimeType,
+      timestamp: new Date(Date.now() + 100), // slight offset
+      read: false,
+      status: 'sent',
+    });
+  }
+
+  // ✅ Last message preview — attachment ho toh woh
+  let lastMessagePreview = changes;
+  if (attachment?.url) {
+    if (attachment.type === 'image') lastMessagePreview = '📷 Photo';
+    else lastMessagePreview = `📄 ${attachment.fileName || 'Document'}`;
+  }
 
   const contact = await db.contact.create({
     data: {
@@ -34,10 +62,19 @@ const submitContact = async (userId, { projectId, changes, budget, priority }) =
       budget,
       priority: priority || 'normal',
       status: 'pending',
-      messages: [initialMessage],
-      lastMessage: changes,
+      // ✅ Top-level attachment (reference ke liye)
+      attachment: attachment || {
+        type: null,
+        url: null,
+        fileName: null,
+        fileSize: null,
+        mimeType: null,
+      },
+      // ✅ Messages array mein text + attachment dono
+      messages: initialMessages,
+      lastMessage: lastMessagePreview,
       lastMessageAt: new Date(),
-      unreadByAdmin: 1,
+      unreadByAdmin: initialMessages.length, // ✅ Jitne messages, utne unread
       unreadByUser: 0,
     },
   });
@@ -50,6 +87,7 @@ const submitContact = async (userId, { projectId, changes, budget, priority }) =
     changes,
     budget,
     priority,
+    attachment,
   });
 
   return contact;
@@ -86,7 +124,6 @@ const adminReply = async (contactId, reply) => {
     },
   });
 
-  // Send email notification to user
   await emailService.sendAdminReplyEmail({
     name: contact.name,
     email: contact.email,

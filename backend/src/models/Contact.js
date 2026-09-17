@@ -11,10 +11,28 @@ const contactSchema = new mongoose.Schema({
   priority: { type: String, enum: ['low', 'normal', 'urgent'], default: 'normal' },
   status: { type: String, enum: ['pending', 'in-progress', 'completed'], default: 'pending' },
   
+  // ✅ Contact attachment
+  attachment: {
+    type: { type: String, enum: ['image', 'document', null], default: null },
+    url: { type: String, default: null },
+    fileName: { type: String, default: null },
+    fileSize: { type: Number, default: null },
+    mimeType: { type: String, default: null },
+  },
+  
   messages: [{
     clientId: { type: String, default: null },
     sender: { type: String, enum: ['user', 'admin'], required: true },
-    text: { type: String, required: true },
+    type: { 
+      type: String, 
+      enum: ['text', 'image', 'document'], 
+      default: 'text' 
+    },
+    text: { type: String, default: '' },
+    fileUrl: { type: String, default: null },
+    fileName: { type: String, default: null },
+    fileSize: { type: Number, default: null },
+    mimeType: { type: String, default: null },
     timestamp: { type: Date, default: Date.now },
     read: { type: Boolean, default: false },
     status: { 

@@ -5,7 +5,7 @@ const contactService = require('../modules/contact/contact.service');
 // Submit contact request
 router.post('/', authenticate, async (req, res) => {
   try {
-    const { projectId, changes, budget, priority } = req.body;
+    const { projectId, changes, budget, priority, attachment } = req.body;
 
     if (!changes || changes.trim().length < 10) {
       return res.status(400).json({ error: 'Please describe your changes (min 10 characters)' });
@@ -15,7 +15,7 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     const contact = await contactService.submitContact(req.userId, {
-      projectId, changes, budget, priority,
+      projectId, changes, budget, priority, attachment,
     });
 
     res.json({

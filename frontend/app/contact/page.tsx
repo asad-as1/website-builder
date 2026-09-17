@@ -5,7 +5,18 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
-import { Send, CheckCircle, AlertCircle, History, ChevronDown, Check } from "lucide-react";
+import {
+  Send,
+  CheckCircle,
+  AlertCircle,
+  History,
+  ChevronDown,
+  Check,
+  Paperclip,
+  X,
+  FileText,
+  Loader2,
+} from "lucide-react";
 
 type Project = { id: string; name: string };
 
@@ -14,9 +25,13 @@ type DropdownOption = {
   label: string;
 };
 
-// Reusable custom dropdown — replaces the native <select> with a themed,
-// keyboard/click-outside aware listbox. Purely presentational: it reports
-// the chosen value the same way a native select's onChange would.
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Reusable custom dropdown
 function CustomDropdown({
   value,
   options,
@@ -120,6 +135,12 @@ export default function ContactPage() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  // ✅ Attachment state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [fileError, setFileError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
@@ -134,6 +155,36 @@ export default function ContactPage() {
       .catch(() => {});
   }, [session?.user?.accessToken]);
 
+  // ✅ File select
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError("File too large. Maximum 10MB allowed.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+    setFileError("");
+
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onloadend = () => setFilePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
+    }
+  };
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    setFileError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session?.user?.accessToken) return;
@@ -143,11 +194,40 @@ export default function ContactPage() {
     setSuccess("");
 
     try {
+      let attachment = null;
+
+      // ✅ Step 1: Upload file if selected
+      if (selectedFile) {
+        const formDataFile = new FormData();
+        formDataFile.append("file", selectedFile);
+
+        const uploadRes = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/upload`,
+          formDataFile,
+          {
+            headers: {
+              Authorization: `Bearer ${session.user.accessToken}`,
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
+
+        attachment = {
+          type: uploadRes.data.type,
+          url: uploadRes.data.fileUrl,
+          fileName: uploadRes.data.fileName,
+          fileSize: uploadRes.data.fileSize,
+          mimeType: uploadRes.data.mimeType,
+        };
+      }
+
+      // ✅ Step 2: Submit contact with attachment
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/contact`,
-        formData,
+        { ...formData, attachment },
         { headers: { Authorization: `Bearer ${session.user.accessToken}` } }
       );
+
       setSuccess(response.data.message);
       setFormData({
         projectId: "",
@@ -155,6 +235,7 @@ export default function ContactPage() {
         budget: "₹500 - ₹1000",
         priority: "normal",
       });
+      clearSelectedFile();
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to send request");
     } finally {
@@ -264,6 +345,61 @@ export default function ContactPage() {
             />
           </div>
 
+          {/* ✅ Attachment */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">
+              Attachment (optional)
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              hidden
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+              onChange={handleFileSelect}
+            />
+
+            {!selectedFile ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 border-dashed rounded-lg text-gray-400 hover:bg-white/[0.07] hover:border-cyan-400/40 hover:text-gray-300 transition flex items-center justify-center gap-2"
+              >
+                <Paperclip className="w-4 h-4" />
+                <span className="text-sm">Attach a file (image, PDF, doc — max 10MB)</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 p-3 bg-white/[0.05] border border-cyan-500/30 rounded-lg">
+                {filePreview ? (
+                  <img
+                    src={filePreview}
+                    alt="preview"
+                    className="w-14 h-14 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-white/10 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-cyan-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                  <p className="text-xs text-gray-400">
+                    {formatFileSize(selectedFile.size)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearSelectedFile}
+                  className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {fileError && (
+              <p className="text-xs text-red-400 mt-2">{fileError}</p>
+            )}
+          </div>
+
           {/* Budget + Priority */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
@@ -307,7 +443,10 @@ export default function ContactPage() {
             className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg font-semibold hover:scale-105 transition flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
           >
             {isLoading ? (
-              "Sending..."
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sending...
+              </>
             ) : (
               <>
                 <Send className="w-4 h-4" /> Send Request

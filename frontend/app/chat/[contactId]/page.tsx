@@ -5,15 +5,32 @@ import { useSession } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
-import { ArrowLeft, Send, Check, CheckCheck, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  Check,
+  CheckCheck,
+  Clock,
+  Paperclip,
+  X,
+  FileText,
+  Download,
+  Loader2,
+} from "lucide-react";
 import { useSocket } from "@/app/providers/SocketProvider";
 
 type MessageStatus = "sending" | "sent" | "delivered" | "read";
+type MessageType = "text" | "image" | "document";
 
 type Message = {
   clientId?: string;
   sender: "user" | "admin";
+  type?: MessageType;
   text: string;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  mimeType?: string | null;
   timestamp: string;
   status: MessageStatus;
   read?: boolean;
@@ -26,7 +43,6 @@ type Contact = {
   messages: Message[];
 };
 
-// ✅ Ticks — User side (right)
 function MessageTicks({ status }: { status: MessageStatus }) {
   const iconClass = "w-3.5 h-3.5";
 
@@ -44,6 +60,12 @@ function MessageTicks({ status }: { status: MessageStatus }) {
   }
 }
 
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function ChatRoomPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -58,6 +80,15 @@ export default function ChatRoomPage() {
   const [adminTyping, setAdminTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ✅ Viewer state — image aur pdf dono ke liye
+  const [viewingFile, setViewingFile] = useState<{ url: string; type: "image" | "pdf" } | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -160,6 +191,40 @@ export default function ChatRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // ✅ 10MB limit
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("File too large. Maximum 10MB allowed.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+    setUploadError("");
+
+    // ✅ Image preview
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onloadend = () => setFilePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    } else if (file.type === "application/pdf") {
+      // ✅ PDF preview — icon
+      setFilePreview(null);
+    } else {
+      setFilePreview(null);
+    }
+  };
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    setUploadError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSend = () => {
     if (!newMessage.trim() || !socket || !contact) return;
 
@@ -168,6 +233,7 @@ export default function ChatRoomPage() {
     const optimisticMessage: Message = {
       clientId,
       sender: "user",
+      type: "text",
       text: newMessage.trim(),
       timestamp: new Date().toISOString(),
       status: "sending",
@@ -181,6 +247,7 @@ export default function ChatRoomPage() {
       contactId: contact.id,
       text: messageText,
       clientId,
+      type: "text",
     });
     socket.emit("typing", { contactId: contact.id, isTyping: false });
 
@@ -193,6 +260,82 @@ export default function ChatRoomPage() {
         )
       );
     }, 500);
+  };
+
+  const handleSendFile = async () => {
+    if (!selectedFile || !socket || !contact || !session?.user?.accessToken) return;
+
+    setIsUploading(true);
+    setUploadError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const uploadRes = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/upload`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${session.user.accessToken}`,
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      const { fileUrl, fileName, fileSize, mimeType, type } = uploadRes.data;
+
+      const clientId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      
+      // ✅ PDF ko bhi 'image' type karo — modal mein open hoga
+      const isPdf = mimeType === "application/pdf";
+      const messageType: MessageType = (type === "image" || isPdf) ? "image" : "document";
+      const caption = newMessage.trim();
+
+      const optimisticMessage: Message = {
+        clientId,
+        sender: "user",
+        type: messageType,
+        text: caption,
+        fileUrl,
+        fileName,
+        fileSize,
+        mimeType,
+        timestamp: new Date().toISOString(),
+        status: "sending",
+      };
+
+      setMessages((prev) => [...prev, optimisticMessage]);
+
+      socket.emit("send-message", {
+        contactId: contact.id,
+        text: caption,
+        clientId,
+        type: messageType,
+        fileUrl,
+        fileName,
+        fileSize,
+        mimeType,
+      });
+
+      clearSelectedFile();
+      setNewMessage("");
+
+      setTimeout(() => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.clientId === clientId && msg.status === "sending"
+              ? { ...msg, status: "sent" }
+              : msg
+          )
+        );
+      }, 500);
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      setUploadError(error.response?.data?.error || "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,6 +354,23 @@ export default function ChatRoomPage() {
     }, 1500);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (selectedFile) {
+        void handleSendFile();
+      } else {
+        handleSend();
+      }
+    }
+  };
+
+  // ✅ File click handler — image ya pdf modal open
+  const openFileViewer = (url: string, mimeType?: string | null, fileName?: string | null) => {
+    const isPdf = mimeType === "application/pdf" || fileName?.toLowerCase().endsWith(".pdf");
+    setViewingFile({ url, type: isPdf ? "pdf" : "image" });
+  };
+
   if (status === "loading" || isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -221,7 +381,6 @@ export default function ChatRoomPage() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0f] text-white flex flex-col relative overflow-hidden">
-      {/* ambient background glow, purely decorative */}
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute -top-32 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px]" />
         <div className="absolute top-1/3 -right-20 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px]" />
@@ -237,7 +396,7 @@ export default function ChatRoomPage() {
           </Link>
           <div className="relative shrink-0">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-semibold text-sm shadow-lg shadow-purple-500/20">
-              {(contact?.projectName || "G").charAt(0).toUpperCase()}
+              A
             </div>
             <span
               className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0a0f] ${
@@ -246,9 +405,9 @@ export default function ChatRoomPage() {
             />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold leading-tight truncate">{contact?.projectName || "General Request"}</h2>
+            <h2 className="font-semibold leading-tight truncate">Asad Admin</h2>
             <p className="text-xs text-gray-400 truncate">
-              {isConnected ? "Admin • Online" : "Connecting…"}
+              {isConnected ? `${contact?.projectName} • Online` : "Connecting…"}
             </p>
           </div>
         </div>
@@ -267,20 +426,84 @@ export default function ChatRoomPage() {
           )}
           {messages.map((msg, i) => {
             const isUser = msg.sender === "user";
+            const msgType = msg.type || "text";
+            const isPdfMsg = msg.mimeType === "application/pdf" || msg.fileName?.toLowerCase().endsWith(".pdf");
+            const isViewable = msgType === "image" && msg.fileUrl;
+
             return (
               <div key={msg.clientId || i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm ${
+                  className={`max-w-[75%] rounded-2xl shadow-sm overflow-hidden ${
                     isUser
                       ? "bg-gradient-to-br from-cyan-500 to-purple-600 text-white rounded-br-md"
                       : "bg-white/[0.06] border border-white/[0.06] text-gray-100 rounded-bl-md"
                   }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>
+                  {/* ✅ IMAGE / PDF VIEWABLE */}
+                  {isViewable && msg.fileUrl && (
+                    <button
+                      onClick={() => openFileViewer(msg.fileUrl!, msg.mimeType, msg.fileName)}
+                      className="block w-full"
+                    >
+                      {isPdfMsg ? (
+                        // PDF preview — icon with filename
+                        <div className={`flex items-center gap-3 px-4 py-4 ${isUser ? "bg-white/5" : "bg-white/[0.03]"}`}>
+                          <div className={`p-3 rounded-lg ${isUser ? "bg-white/15" : "bg-white/10"}`}>
+                            <FileText className="w-6 h-6" />
+                          </div>
+                          <div className="flex-1 min-w-0 text-left">
+                            <p className="text-sm font-medium truncate">{msg.fileName || "Document.pdf"}</p>
+                            <p className={`text-xs ${isUser ? "text-white/70" : "text-gray-500"}`}>
+                              PDF • {msg.fileSize ? formatFileSize(msg.fileSize) : ""}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        // Image preview
+                        <img
+                          src={msg.fileUrl}
+                          alt={msg.fileName || "attachment"}
+                          className="max-w-full max-h-80 object-cover cursor-pointer hover:opacity-95 transition"
+                        />
+                      )}
+                    </button>
+                  )}
+
+                  {/* ✅ DOCUMENT (non-pdf, non-image) */}
+                  {msgType === "document" && msg.fileUrl && (
+                    <a
+                      href={msg.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={msg.fileName || "document"}
+                      className={`flex items-center gap-3 px-4 py-3 ${
+                        isUser ? "hover:bg-white/5" : "hover:bg-white/[0.03]"
+                      } transition`}
+                    >
+                      <div className={`p-2.5 rounded-lg ${isUser ? "bg-white/15" : "bg-white/10"}`}>
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm font-medium truncate">{msg.fileName || "Document"}</p>
+                        <p className={`text-xs ${isUser ? "text-white/70" : "text-gray-500"}`}>
+                          {msg.fileSize ? formatFileSize(msg.fileSize) : ""}
+                        </p>
+                      </div>
+                      <Download className="w-4 h-4 opacity-70 shrink-0" />
+                    </a>
+                  )}
+
+                  {/* Caption / Text */}
+                  {msg.text && (
+                    <div className="px-4 py-2.5">
+                      <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>
+                    </div>
+                  )}
+
                   <div
-                    className={`text-[11px] mt-1 flex items-center justify-end gap-1 ${
+                    className={`text-[11px] px-4 pb-1.5 flex items-center justify-end gap-1 ${
                       isUser ? "text-white/70" : "text-gray-500"
-                    }`}
+                    } ${msgType !== "text" ? "pt-1" : "mt-1"}`}
                   >
                     <span>
                       {new Date(msg.timestamp).toLocaleTimeString("en-IN", {
@@ -310,25 +533,112 @@ export default function ChatRoomPage() {
         </div>
       )}
 
+      {selectedFile && (
+        <div className="fixed bottom-20 left-0 right-0 z-40 px-4">
+          <div className="max-w-3xl mx-auto bg-[#1a1a2e] border border-cyan-500/30 rounded-2xl p-3 flex items-center gap-3 shadow-2xl">
+            {filePreview ? (
+              <img src={filePreview} alt="preview" className="w-14 h-14 rounded-lg object-cover" />
+            ) : (
+              <div className="w-14 h-14 rounded-lg bg-white/10 flex items-center justify-center">
+                <FileText className="w-6 h-6 text-cyan-400" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+              <p className="text-xs text-gray-400">{formatFileSize(selectedFile.size)}</p>
+              {uploadError && <p className="text-xs text-red-400 mt-0.5">{uploadError}</p>}
+            </div>
+            <button
+              onClick={clearSelectedFile}
+              disabled={isUploading}
+              className="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition disabled:opacity-40"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.08]">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={handleTyping}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Type a message…"
-            className="flex-1 px-4 py-3 bg-white/[0.06] border border-white/10 rounded-full text-white text-sm placeholder-gray-500 focus:outline-none focus:border-cyan-400/60 focus:bg-white/[0.08] transition-colors"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!newMessage.trim() || !isConnected}
-            className="shrink-0 p-3 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 shadow-lg shadow-purple-500/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            <Send className="w-5 h-5" />
-          </button>
+        <div className="max-w-3xl mx-auto px-4 py-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1 relative">
+              <input
+                ref={fileInputRef}
+                type="file"
+                hidden
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                onChange={handleFileSelect}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || !!selectedFile}
+                className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed z-10"
+                title="Attach file"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+              <input
+                type="text"
+                value={newMessage}
+                onChange={handleTyping}
+                onKeyDown={handleKeyDown}
+                placeholder={selectedFile ? "Add a caption…" : "Type a message…"}
+                className="w-full pl-12 pr-4 py-3 bg-white/[0.06] border border-white/10 rounded-full text-white text-sm placeholder-gray-500 focus:outline-none focus:border-cyan-400/60 focus:bg-white/[0.08] transition-colors"
+              />
+            </div>
+
+            <button
+              onClick={selectedFile ? handleSendFile : handleSend}
+              disabled={
+                selectedFile 
+                  ? (!isConnected || isUploading)
+                  : (!newMessage.trim() || !isConnected)
+              }
+              className="shrink-0 p-3 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 shadow-lg shadow-purple-500/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {isUploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ✅ File Viewer Modal — Image + PDF */}
+      {viewingFile && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setViewingFile(null)}
+        >
+          <button
+            onClick={() => setViewingFile(null)}
+            className="absolute top-4 right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {viewingFile.type === "pdf" ? (
+            // ✅ PDF viewer
+            <iframe
+              src={viewingFile.url}
+              title="PDF viewer"
+              className="w-full h-full max-w-4xl rounded-lg bg-white"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            // ✅ Image viewer
+            <img
+              src={viewingFile.url}
+              alt="fullscreen"
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
     </main>
   );
 }

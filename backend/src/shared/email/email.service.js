@@ -199,7 +199,8 @@ const sendVerificationEmail = async (email, token) => {
 };
 
 // ==================== CONTACT EMAIL ====================
-const sendContactEmail = async ({ name, email, projectName, changes, budget, priority }) => {
+// ==================== CONTACT EMAIL ====================
+const sendContactEmail = async ({ name, email, projectName, changes, budget, priority, attachment }) => {
   try {
     const priorityEmoji = priority === 'urgent' ? '🔴' : priority === 'low' ? '🟢' : '🟡';
 
@@ -214,6 +215,26 @@ const sendContactEmail = async ({ name, email, projectName, changes, budget, pri
       </tr>
     `;
 
+    // ✅ Attachment section
+    const attachmentSection = attachment?.url ? `
+      <p style="margin:26px 0 10px;font-family:${FONT};font-size:13px;font-weight:600;line-height:18px;color:${BRAND.muted};">
+        Attachment
+      </p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:26px;">
+        <tr>
+          <td style="padding:14px 16px;background-color:#F7F8FC;border:1px solid ${BRAND.line};border-radius:10px;">
+            <a href="${attachment.url}" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:${BRAND.ink};font-family:${FONT};">
+              <span style="font-size:20px;">${attachment.type === 'image' ? '🖼️' : '📄'}</span>
+              <span style="font-size:14px;font-weight:600;">${esc(attachment.fileName || 'Attachment')}</span>
+            </a>
+            <p style="margin:6px 0 0;font-family:${FONT};font-size:12px;color:${BRAND.muted};">
+              <a href="${attachment.url}" style="color:${BRAND.accent};text-decoration:underline;">Open / Download</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    ` : '';
+
     const info = await transporter.sendMail({
       from: `"Genetix Contact" <${process.env.EMAIL_USER}>`,
       to: process.env.EMAIL_USER,
@@ -221,7 +242,7 @@ const sendContactEmail = async ({ name, email, projectName, changes, budget, pri
       subject: `${priorityEmoji} New Custom Request - ${name}`,
       text: `New custom change request\n\nFrom: ${name} (${email})\nProject: ${
         projectName || 'Not specified'
-      }\nBudget: ${budget}\nPriority: ${priority}\n\nChanges required:\n${changes}`,
+      }\nBudget: ${budget}\nPriority: ${priority}\n${attachment?.url ? `\nAttachment: ${attachment.url}\n` : ''}\nChanges required:\n${changes}`,
       html: layout({
         eyebrow: 'New enquiry',
         title: 'Custom change request',
@@ -259,6 +280,8 @@ const sendContactEmail = async ({ name, email, projectName, changes, budget, pri
               </td>
             </tr>
           </table>
+
+          ${attachmentSection}
         `,
         footerNote: `Sent automatically from the ${BRAND.name} contact form.`,
       }),

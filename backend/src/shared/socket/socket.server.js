@@ -64,13 +64,10 @@ const initializeSocket = (httpServer) => {
         socket.join(`contact:${contactId}`);
         console.log(`[Socket] ✅ ${socket.userName} joined contact:${contactId}`);
 
-        // ✅ Delivered mark karo — doosre user ke 'sent' messages ko
         const messages = (contact.messages || []).map((msg) => {
-          // Agar user join kar raha hai → admin ke 'sent' messages delivered
           if (!isAdmin && msg.sender === 'admin' && msg.status === 'sent') {
             return { ...msg, status: 'delivered' };
           }
-          // Agar admin join kar raha hai → user ke 'sent' messages delivered
           if (isAdmin && msg.sender === 'user' && msg.status === 'sent') {
             return { ...msg, status: 'delivered' };
           }
@@ -82,7 +79,6 @@ const initializeSocket = (httpServer) => {
           data: { messages },
         });
 
-        // ✅ Sender ko notify karo delivered status ke liye
         io.to(`contact:${contactId}`).emit('message-delivered', { contactId });
 
         socket.emit('joined-room', { contactId });
@@ -100,10 +96,15 @@ const initializeSocket = (httpServer) => {
     });
 
     // ==================== SEND MESSAGE ====================
-    socket.on('send-message', async ({ contactId, text, clientId }) => {
-      console.log(`[Socket] 📩 send-message: ${socket.userName} -> ${contactId}`);
+    socket.on('send-message', async ({ contactId, text, clientId, type, fileUrl, fileName, fileSize, mimeType }) => {
+      console.log(`[Socket] 📩 send-message: ${socket.userName} -> ${contactId} (type: ${type || 'text'})`);
       try {
-        if (!contactId || !text?.trim()) return;
+        if (!contactId) return;
+        
+        // ✅ Text message ke liye text zaroori, file message ke liye fileUrl zaroori
+        const messageType = type || 'text';
+        if (messageType === 'text' && !text?.trim()) return;
+        if (messageType !== 'text' && !fileUrl) return;
 
         const contact = await db.contact.findUnique({ where: { id: contactId } });
         if (!contact) {
@@ -121,20 +122,30 @@ const initializeSocket = (httpServer) => {
 
         const sender = isAdmin ? 'admin' : 'user';
         
-        // ✅ Hamesha 'sent' status — delivered sirf join-room pe
+        // ✅ Message object with file fields
         const newMessage = {
           clientId: clientId || null,
           sender,
-          text: text.trim(),
+          type: messageType,
+          text: text?.trim() || '',
+          fileUrl: fileUrl || null,
+          fileName: fileName || null,
+          fileSize: fileSize || null,
+          mimeType: mimeType || null,
           timestamp: new Date(),
           status: 'sent',
         };
+
+        // ✅ Last message preview
+        let lastMessagePreview = text?.trim() || '';
+        if (messageType === 'image') lastMessagePreview = '📷 Photo';
+        if (messageType === 'document') lastMessagePreview = `📄 ${fileName || 'Document'}`;
 
         await db.contact.update({
           where: { id: contactId },
           data: {
             messages: [...(contact.messages || []), newMessage],
-            lastMessage: text.trim(),
+            lastMessage: lastMessagePreview,
             lastMessageAt: new Date(),
             unreadByAdmin: sender === 'user' ? (contact.unreadByAdmin || 0) + 1 : contact.unreadByAdmin,
             unreadByUser: sender === 'admin' ? (contact.unreadByUser || 0) + 1 : contact.unreadByUser,
@@ -142,7 +153,7 @@ const initializeSocket = (httpServer) => {
           },
         });
 
-        console.log(`[Socket] ✅ Message saved (status: ${newMessage.status})`);
+        console.log(`[Socket] ✅ Message saved (type: ${messageType}, status: ${newMessage.status})`);
 
         io.to(`contact:${contactId}`).emit('new-message', {
           contactId,
@@ -153,12 +164,12 @@ const initializeSocket = (httpServer) => {
           io.emit('admin-notification', {
             contactId,
             userName: contact.name,
-            text: text.trim(),
+            text: lastMessagePreview,
           });
         } else {
           io.to(`user:${contact.userId}`).emit('user-notification', {
             contactId,
-            text: text.trim(),
+            text: lastMessagePreview,
           });
         }
       } catch (error) {
