@@ -1,4 +1,4 @@
-const jwtService = require('../../shared/jwt/jwt.service');
+const jwtService = require('../../services/jwt.service');
 
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;

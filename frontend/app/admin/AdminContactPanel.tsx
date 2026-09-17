@@ -16,6 +16,7 @@ type Contact = {
   id: string;
   name: string;
   email: string;
+  profilePic?: string | null; // ✅ added
   projectName: string;
   changes: string;
   budget: string;
@@ -38,7 +39,17 @@ const priorityEmoji: Record<string, string> = {
   urgent: "🔴",
 };
 
-export default function AdminContactPanel() {
+// ✅ fallback avatar helper
+const getAvatar = (url?: string | null) =>
+  url && url.trim().length > 0
+    ? url
+    : "https://ui-avatars.com/api/?background=0a0a0f&color=22d3ee&bold=true&name=U";
+
+type Props = {
+  onImageClick?: (url: string) => void; // ✅ optional: parent modal use kare
+};
+
+export default function AdminContactPanel({ onImageClick }: Props) {
   const { data: session } = useSession();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +58,14 @@ export default function AdminContactPanel() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isReplying, setIsReplying] = useState(false);
-  
+
+  // ✅ local image preview (agar parent modal na de)
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const openImage = (url: string) => {
+    if (onImageClick) onImageClick(url);
+    else setPreviewImage(url);
+  };
+
   // ✅ Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -106,7 +124,6 @@ export default function AdminContactPanel() {
     }
   };
 
-  // ✅ Delete confirmation — modal se confirm karo
   const confirmDelete = async () => {
     if (!deleteTarget || !session?.user.accessToken) return;
     setIsDeleting(true);
@@ -193,6 +210,8 @@ export default function AdminContactPanel() {
           <table className="w-full text-left">
             <thead>
               <tr className="text-xs uppercase text-gray-500 border-b border-white/10">
+                <th className="py-3 px-2">Sr. No.</th>
+                <th className="py-3 px-2">Pic</th>
                 <th className="py-3 px-2">User</th>
                 <th className="py-3 px-2">Project</th>
                 <th className="py-3 px-2">Budget</th>
@@ -203,10 +222,20 @@ export default function AdminContactPanel() {
               </tr>
             </thead>
             <tbody>
-              {filteredContacts.map((contact) => {
+              {filteredContacts.map((contact, index) => {
                 const config = statusConfig[contact.status] || statusConfig.pending;
+                const avatar = getAvatar(contact.profilePic);
                 return (
                   <tr key={contact.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                    <td className="py-3 px-2 text-sm text-gray-500">{index + 1}</td>
+                    <td className="py-3 px-2">
+                      <img
+                        src={avatar}
+                        alt={contact.name}
+                        onClick={() => openImage(avatar)}
+                        className="w-14 h-14 rounded-full object-cover cursor-pointer border border-white/20 hover:scale-105 transition"
+                      />
+                    </td>
                     <td className="py-3 px-2">
                       <div className="text-sm font-medium">{contact.name}</div>
                       <div className="text-xs text-gray-500">{contact.email}</div>
@@ -245,7 +274,7 @@ export default function AdminContactPanel() {
                           <Send className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => setDeleteTarget(contact)}  // ✅ Modal open karo
+                          onClick={() => setDeleteTarget(contact)}
                           className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
                           title="Delete"
                         >
@@ -275,20 +304,35 @@ export default function AdminContactPanel() {
               </button>
             </div>
 
-            <div className="mb-4 p-4 bg-white/5 rounded-lg">
+            {/* ✅ Profile pic + sender info */}
+            <div className="mb-4 p-4 bg-white/5 rounded-lg flex items-start gap-3">
+              <img
+                src={getAvatar(selectedContact.profilePic)}
+                alt={selectedContact.name}
+                onClick={() => openImage(getAvatar(selectedContact.profilePic))}
+                className="w-12 h-12 rounded-full object-cover cursor-pointer border border-white/20 hover:scale-105 transition"
+              />
               <div className="text-sm">
-                <span className="text-gray-500">From: </span>
-                <span className="text-gray-200">{selectedContact.name} ({selectedContact.email})</span>
-              </div>
-              <div className="text-sm mt-1">
-                <span className="text-gray-500">Project: </span>
-                <span className="text-gray-200">{selectedContact.projectName || "General"}</span>
-              </div>
-              <div className="text-sm mt-1">
-                <span className="text-gray-500">Budget: </span>
-                <span className="text-cyan-300">{selectedContact.budget}</span>
-                <span className="text-gray-500 ml-4">Priority: </span>
-                <span>{priorityEmoji[selectedContact.priority]} {selectedContact.priority}</span>
+                <div>
+                  <span className="text-gray-500">From: </span>
+                  <span className="text-gray-200">
+                    {selectedContact.name} ({selectedContact.email})
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <span className="text-gray-500">Project: </span>
+                  <span className="text-gray-200">
+                    {selectedContact.projectName || "General"}
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <span className="text-gray-500">Budget: </span>
+                  <span className="text-cyan-300">{selectedContact.budget}</span>
+                  <span className="text-gray-500 ml-4">Priority: </span>
+                  <span>
+                    {priorityEmoji[selectedContact.priority]} {selectedContact.priority}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -337,16 +381,12 @@ export default function AdminContactPanel() {
       {/* ✅ Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => !isDeleting && setDeleteTarget(null)}
           />
-
-          {/* Modal */}
           <div className="relative glass p-8 rounded-2xl w-full max-w-md mx-4 border border-white/10">
             <div className="text-center">
-              {/* Warning Icon */}
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-8 h-8 text-red-400" />
               </div>
@@ -385,6 +425,28 @@ export default function AdminContactPanel() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Local image preview modal (fallback if parent didn't pass onImageClick) */}
+      {!onImageClick && previewImage && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-3xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={previewImage}
+              alt="preview"
+              className="max-w-full max-h-[85vh] rounded-2xl border border-white/20 shadow-2xl"
+            />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white text-black font-bold hover:bg-gray-200 transition"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}

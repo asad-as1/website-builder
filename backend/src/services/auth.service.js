@@ -1,10 +1,32 @@
 const bcrypt = require('bcryptjs');
-const db = require('../../shared/mongodb/mongodb.client');
-const jwtService = require('../../shared/jwt/jwt.service');
-const emailService = require('../../shared/email/email.service');
+const db = require('../shared/mongodb.client');
+const jwtService = require('../services/jwt.service');
+const emailService = require('../services/email.service');
+const cloudinary = require('../shared/cloudinary.client');
+
+
+const uploadAvatarToCloudinary = async (fileBuffer, userId = null) => {
+  return new Promise((resolve, reject) => {
+    const publicId = userId
+      ? `user_${userId}_${Date.now()}`
+      : `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'genetix/avatars',
+        public_id: publicId,
+        transformation: [
+          { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+          { quality: 'auto', fetch_format: 'auto' },
+        ],
+      },
+      (err, res) => (err ? reject(err) : resolve(res)),
+    );
+    stream.end(fileBuffer);
+  });
+};
 
 // ==================== REGISTER ====================
-const register = async ({ email, password, name }) => {
+const register = async ({ email, password, name }, avatarFile = null) => {
   const existingUser = await db.user.findUnique({
     where: { email }
   });
@@ -17,11 +39,25 @@ const register = async ({ email, password, name }) => {
   const verifyToken = jwtService.generateEmailToken();
   const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+  // ✅ Upload avatar if provided
+  let avatarUrl = null;
+  if (avatarFile) {
+    try {
+      const uploadResult = await uploadAvatarToCloudinary(avatarFile.buffer);
+      avatarUrl = uploadResult.secure_url;
+      console.log(`[Auth] Avatar uploaded: ${avatarUrl}`);
+    } catch (err) {
+      console.error(`[Auth] Avatar upload failed: ${err.message}`);
+      // ✅ Silent fail — user register ho jayega without avatar
+    }
+  }
+
   const user = await db.user.create({
     data: {
       email,
       password: hashedPassword,
       name: name || 'User',
+      avatar: avatarUrl,
       emailVerified: false,
       verifyToken,
       verifyTokenExpires: tokenExpiry
@@ -35,7 +71,8 @@ const register = async ({ email, password, name }) => {
     user: {
       id: user.id,
       email: user.email,
-      name: user.name
+      name: user.name,
+      avatar: user.avatar
     }
   };
 };
@@ -71,7 +108,6 @@ const verifyEmail = async (token) => {
     }
   });
 
-  // ✅ Generate JWT for auto-login
   const jwtToken = jwtService.generateToken(user.id);
 
   return {
@@ -102,7 +138,6 @@ const login = async ({ email, password }) => {
     throw new Error('Account deactivated. Contact support.');
   }
 
-  // ✅ SPECIAL CASE: Verification ke baad auto-login
   if (password === 'VERIFIED_BY_TOKEN') {
     if (!user.emailVerified) {
       throw new Error('Please verify your email first');
@@ -120,7 +155,6 @@ const login = async ({ email, password }) => {
     };
   }
 
-  // ✅ NORMAL LOGIN
   if (!user.password) {
     throw new Error('Please login with Google');
   }
@@ -284,6 +318,46 @@ const resendVerification = async (email) => {
   return { message: 'New verification email sent. Check your inbox.' };
 };
 
+// ==================== ✅ UPDATE AVATAR ====================
+const updateAvatar = async (userId, avatarFile) => {
+  if (!avatarFile) {
+    throw new Error('No image provided');
+  }
+
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // ✅ Delete old avatar from Cloudinary (if exists and not a Google URL)
+  if (user.avatar && user.avatar.includes('cloudinary.com')) {
+    try {
+      // Extract public_id from URL
+      const parts = user.avatar.split('/');
+      const filename = parts[parts.length - 1];
+      const publicId = `genetix/avatars/${filename.split('.')[0]}`;
+      await cloudinary.uploader.destroy(publicId);
+      console.log(`[Auth] Old avatar deleted: ${publicId}`);
+    } catch (err) {
+      console.log(`[Auth] Old avatar delete failed: ${err.message}`);
+    }
+  }
+
+  // ✅ Upload new avatar
+  const uploadResult = await uploadAvatarToCloudinary(avatarFile.buffer, userId);
+
+  // ✅ Update DB
+  const updated = await db.user.update({
+    where: { id: userId },
+    data: { avatar: uploadResult.secure_url },
+  });
+
+  return {
+    message: 'Avatar updated successfully',
+    avatar: updated.avatar,
+  };
+};
+
 // ==================== EXPORT ====================
 module.exports = {
   register,
@@ -292,5 +366,6 @@ module.exports = {
   googleAuth,
   getMe,
   deleteAccount,
-  resendVerification
+  resendVerification,
+  updateAvatar, 
 };

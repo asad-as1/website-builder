@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { authenticate } = require('../modules/auth/auth.middleware');
-const contactService = require('../modules/contact/contact.service');
+const contactService = require('../services/contact.service');
 
 // Submit contact request
 router.post('/', authenticate, async (req, res) => {
@@ -30,8 +30,8 @@ router.post('/', authenticate, async (req, res) => {
 
 router.get('/history', authenticate, async (req, res) => {
   try {
-    const contacts = await contactService.getUserHistory(req.userId);
-    res.json({ contacts });
+    const result = await contactService.getUserHistoryWithAdmin(req.userId);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch history' });
   }

@@ -1,6 +1,6 @@
-const providers = require('./providers');
-const { checkRateLimit, incrementUsage } = require('./rateLimiter');
-const db = require('../../shared/mongodb/mongodb.client');
+const providers = require('../modules/ai/providers');
+const { checkRateLimit, incrementUsage } = require('../modules/ai/rateLimiter');
+const db = require('../shared/mongodb.client');
 const crypto = require('crypto');
 
 // Build prompt

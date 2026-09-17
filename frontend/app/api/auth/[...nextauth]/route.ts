@@ -75,11 +75,10 @@ const handler = NextAuth({
           return false;
         }
 
-        // ✅ Store user data from backend
         user.id = data.user.id;
         user.token = data.token;
         user.role = data.user.role || "user";
-        user.image = data.user.avatar || null; // ✅ Avatar set karo
+        user.image = data.user.avatar || null;
         user.name = data.user.name || user.name;
         user.provider = "google";
 
@@ -89,17 +88,40 @@ const handler = NextAuth({
       }
     },
     async jwt({ token, user, trigger, session }) {
-      if (trigger === "update" && session?.role) {
-        token.role = session.role;
-      }
       if (user) {
         token.id = user.id;
         token.accessToken = user.token;
         token.role = user.role;
-        token.image = user.image || null; // ✅ Image store karo
+        token.image = user.image || null;
         token.name = user.name;
         token.provider = user.provider;
       }
+
+      // ✅ Handle session update trigger (avatar update)
+      if (trigger === "update") {
+        // If image passed directly
+        if (session?.image) {
+          token.image = session.image;
+        }
+        // ✅ Fetch fresh avatar from backend
+        if (token.accessToken) {
+          try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+              headers: { Authorization: `Bearer ${token.accessToken}` },
+            });
+            const data = await res.json();
+            if (data.user?.avatar) {
+              token.image = data.user.avatar;
+            }
+            if (data.user?.name) {
+              token.name = data.user.name;
+            }
+          } catch {
+            // Silent fail
+          }
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -107,7 +129,7 @@ const handler = NextAuth({
         session.user.id = token.id as string;
         session.user.accessToken = token.accessToken as string;
         session.user.role = token.role as string;
-        session.user.image = token.image as string || null; 
+        session.user.image = token.image as string || null;
         session.user.name = token.name as string;
         session.user.provider = token.provider as string;
       }

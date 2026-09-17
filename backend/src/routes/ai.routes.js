@@ -1,10 +1,10 @@
 ﻿const router = require('express').Router();
-const aiService = require('./ai.service');
-const { authenticate } = require('../auth/auth.middleware');
-const db = require('../../shared/mongodb/mongodb.client');
+const aiService = require('../services/ai.service');
+const { authenticate } = require('../modules/auth/auth.middleware');
+const db = require('../shared/mongodb.client');
 const archiverModule = require('archiver');
 const multer = require('multer');
-const cloudinary = require('../../shared/cloudinary/cloudinary.client');
+const cloudinary = require('../shared/cloudinary.client');
 
 
 const upload = multer({

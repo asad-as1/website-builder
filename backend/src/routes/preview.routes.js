@@ -1,13 +1,10 @@
 const router = require("express").Router();
 const { Sandbox } = require("e2b");
-const { authenticate } = require("../auth/auth.middleware");
-const db = require("../../shared/mongodb/mongodb.client");
+const { authenticate } = require("../modules/auth/auth.middleware");
+const db = require("../shared/mongodb.client");
 const path = require("path");
-const cloudinary = require("../../shared/cloudinary/cloudinary.client");
-const {
-  checkPreviewLimit,
-  incrementPreviewUsage,
-} = require("../ai/rateLimiter");
+const cloudinary = require("../shared/cloudinary.client");
+const {checkPreviewLimit, incrementPreviewUsage} = require("../modules/ai/rateLimiter");
 
 const E2B_PROJECT_DIR = "/home/user";
 const E2B_PREVIEW_PORT = 3000;

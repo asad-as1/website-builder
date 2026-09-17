@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import axios, { AxiosError } from 'axios';
-import { Eye, EyeOff, Mail, CheckCircle, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Mail, CheckCircle, ArrowRight, Camera, X, Loader2 } from 'lucide-react';
 
 // Google SVG Icon
 const GoogleIcon = () => (
@@ -30,6 +30,12 @@ export default function RegisterPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
 
+  // ✅ Avatar state
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (status === "authenticated") {
       router.push("/dashboard");
@@ -39,14 +45,43 @@ export default function RegisterPage() {
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
-        <div className="flex flex-col items-center gap-4 text-white"><span className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-300/20 border-t-cyan-300" /><span className="text-sm text-gray-300">Loading your account...</span></div>
+        <div className="flex flex-col items-center gap-4 text-white">
+          <span className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-300/20 border-t-cyan-300" />
+          <span className="text-sm text-gray-300">Loading your account...</span>
+        </div>
       </div>
     );
   }
 
-  if (session) {
-    return null;
-  }
+  if (session) return null;
+
+  // ✅ Avatar select handler
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Only images allowed');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Max 5MB allowed');
+      return;
+    }
+
+    setAvatarFile(file);
+    setAvatarError('');
+    const reader = new FileReader();
+    reader.onloadend = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const clearAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setAvatarError('');
+    if (avatarInputRef.current) avatarInputRef.current.value = '';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,10 +89,15 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
-        email,
-        password,
-        name,
+      // ✅ Use FormData for file upload
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('password', password);
+      formData.append('name', name);
+      if (avatarFile) formData.append('avatar', avatarFile);
+
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       setRegisteredEmail(email);
@@ -65,6 +105,7 @@ export default function RegisterPage() {
       setEmail('');
       setPassword('');
       setName('');
+      clearAvatar();
     } catch (err) {
       const axiosError = err as AxiosError<{ error?: string }>;
       setError(axiosError.response?.data?.error || 'Something went wrong');
@@ -82,7 +123,6 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] px-4">
         <div className="glass p-8 rounded-2xl w-full max-w-md text-center">
-          {/* Success Icon */}
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center">
             <CheckCircle className="w-10 h-10 text-green-400" />
           </div>
@@ -146,14 +186,59 @@ export default function RegisterPage() {
 
   // ✅ Register Form
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] px-4 py-10">
       <div className="glass p-8 rounded-2xl w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center gradient-text mb-8">
+        <h1 className="text-3xl font-bold text-center gradient-text mb-6">
           Create Account
         </h1>
+
+        {/* ✅ Avatar Upload */}
+        <div className="flex justify-center mb-6">
+          <div className="relative">
+            <input
+              ref={avatarInputRef}
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={handleAvatarSelect}
+            />
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              className="w-24 h-24 rounded-full border-2 border-dashed border-white/20 hover:border-cyan-400/60 bg-white/5 flex items-center justify-center overflow-hidden transition group relative"
+            >
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="avatar preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-cyan-400">
+                  <Camera className="w-6 h-6" />
+                  <span className="text-[10px]">Add Photo</span>
+                </div>
+              )}
+            </button>
+            {avatarPreview && (
+              <button
+                type="button"
+                onClick={clearAvatar}
+                className="absolute -top-1 -right-1 p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        {avatarError && (
+          <p className="text-xs text-red-400 text-center mb-4">{avatarError}</p>
+        )}
+        <p className="text-center text-xs text-gray-500 mb-6">
+          Optional · Max 5MB · JPG or PNG
+        </p>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name Input */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Full Name</label>
             <input
@@ -166,7 +251,6 @@ export default function RegisterPage() {
             />
           </div>
 
-          {/* Email Input */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Email</label>
             <input
@@ -179,7 +263,6 @@ export default function RegisterPage() {
             />
           </div>
 
-          {/* Password Input with Toggle */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Password</label>
             <div className="relative">
@@ -196,31 +279,32 @@ export default function RegisterPage() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition"
               >
-                {showPassword ? (
-                  <EyeOff className="w-5 h-5" />
-                ) : (
-                  <Eye className="w-5 h-5" />
-                )}
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
           </div>
           
-          {/* Error Message */}
           {error && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-sm text-center">{error}</p>
             </div>
           )}
           
-          {/* Register Button */}
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg font-semibold hover:scale-105 transition ${
+            className={`w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg font-semibold hover:scale-105 transition flex items-center justify-center gap-2 ${
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
           >
-            {isLoading ? 'Creating account...' : 'Create Account'}
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Creating account...
+              </>
+            ) : (
+              'Create Account'
+            )}
           </button>
         </form>
 
@@ -233,7 +317,6 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Google Register Button */}
         <button
           onClick={handleGoogleLogin}
           className="w-full py-3 border border-white/20 rounded-lg font-semibold hover:bg-white/10 transition flex items-center justify-center gap-3"

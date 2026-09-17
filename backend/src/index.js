@@ -2,8 +2,8 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const { connectMongoDB } = require('./shared/mongodb/mongodb.client');
-const { initializeSocket } = require('./shared/socket/socket.server');
+const { connectMongoDB } = require('./shared/mongodb.client');
+const { initializeSocket } = require('./shared/socket.server');
 
 dotenv.config();
 const app = express();
@@ -22,8 +22,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Auth routes
 app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/ai', require('./modules/ai/ai.routes'));
-app.use('/api/preview', require('./modules/preview/preview.routes'));
+app.use('/api/ai', require('./routes/ai.routes'));
+app.use('/api/preview', require('./routes/preview.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/contact', require('./routes/contact.routes'));
 app.use('/api/upload', require('./routes/upload.routes'));  

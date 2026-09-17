@@ -1,17 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
+import axios from "axios";
+import { Camera, X, Loader2 } from "lucide-react";
 
 type Project = { id: string; name: string; prompt: string; status: string; createdAt?: string };
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  // ✅ Avatar update state
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [avatarSuccess, setAvatarSuccess] = useState("");
+  const [avatarError, setAvatarError] = useState("");
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!session?.user.accessToken || !apiUrl) return;
@@ -28,6 +38,71 @@ export default function ProfilePage() {
   if (status === "loading" || !session) return null;
   const user = session.user;
 
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Only images allowed");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError("Max 5MB allowed");
+      return;
+    }
+
+    setAvatarFile(file);
+    setAvatarError("");
+    setAvatarSuccess("");
+    const reader = new FileReader();
+    reader.onloadend = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const cancelAvatarChange = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setAvatarError("");
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+  };
+
+  const handleAvatarUpdate = async () => {
+    if (!avatarFile || !user.accessToken || !apiUrl) return;
+
+    setIsUploading(true);
+    setAvatarError("");
+    setAvatarSuccess("");
+
+    try {
+      const formData = new FormData();
+      formData.append("avatar", avatarFile);
+
+      const response = await axios.put(
+        `${apiUrl}/auth/avatar`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      const newAvatarUrl = response.data.avatar;
+
+      setAvatarSuccess("Profile picture updated!");
+      setAvatarFile(null);
+      setAvatarPreview(null);
+
+      // ✅ Pass new avatar URL to update() — NextAuth jwt callback will refresh from backend
+      await update({ image: newAvatarUrl });
+    } catch (err: any) {
+      setAvatarError(err.response?.data?.error || "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const deleteAccount = async () => {
     try {
       const response = await fetch(`${apiUrl}/auth/delete-account`, { method: "DELETE", headers: { Authorization: `Bearer ${user.accessToken}` } });
@@ -40,16 +115,73 @@ export default function ProfilePage() {
     }
   };
 
+  const currentAvatar = avatarPreview || user.image;
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#080812] via-[#111126] to-[#0a0a0f] px-6 pb-16 pt-24 text-white">
       <div className="mx-auto max-w-6xl">
         <section className="relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-transparent p-8 shadow-2xl shadow-purple-950/30">
           <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl" />
           <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
-            {user.image ? <img src={user.image} alt="" className="h-24 w-24 rounded-3xl object-cover ring-4 ring-white/10" /> : <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-cyan-400 to-purple-600 text-4xl font-bold">{(user.name || "U").charAt(0).toUpperCase()}</div>}
-            <div><p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Genetix account</p><h1 className="mt-2 text-4xl font-bold">{user.name || "User"}</h1><p className="mt-1 text-gray-300">{user.email}</p></div>
+            <div className="relative shrink-0">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={handleAvatarSelect}
+              />
+              {currentAvatar ? (
+                <img
+                  src={currentAvatar}
+                  alt=""
+                  key={currentAvatar}
+                  className="h-24 w-24 rounded-3xl object-cover ring-4 ring-white/10"
+                />
+              ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-cyan-400 to-purple-600 text-4xl font-bold">
+                  {(user.name || "U").charAt(0).toUpperCase()}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isUploading}
+                className="absolute -bottom-1 -right-1 p-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:scale-110 transition shadow-lg disabled:opacity-50"
+                title="Change profile picture"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Genetix account</p>
+              <h1 className="mt-2 text-4xl font-bold">{user.name || "User"}</h1>
+              <p className="mt-1 text-gray-300">{user.email}</p>
+            </div>
             <span className="md:ml-auto rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-300">Active account</span>
           </div>
+
+          {avatarFile && (
+            <div className="relative mt-4 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleAvatarUpdate}
+                disabled={isUploading}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-600 text-sm font-semibold flex items-center gap-2 disabled:opacity-60"
+              >
+                {isUploading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : "Save picture"}
+              </button>
+              <button
+                onClick={cancelAvatarChange}
+                disabled={isUploading}
+                className="px-4 py-2 rounded-lg border border-white/10 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {avatarSuccess && <p className="relative mt-3 text-sm text-emerald-400">{avatarSuccess}</p>}
+          {avatarError && <p className="relative mt-3 text-sm text-red-400">{avatarError}</p>}
         </section>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">

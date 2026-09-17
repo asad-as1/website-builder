@@ -1,6 +1,6 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
-const db = require('../mongodb/mongodb.client');
+const db = require('../shared/mongodb.client');
 
 let io = null;
 const onlineUsers = new Map();
@@ -8,7 +8,7 @@ const onlineUsers = new Map();
 const initializeSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: process.env.FRONTEND_URL,
       credentials: true,
     },
     transports: ["polling", "websocket"],
@@ -26,7 +26,7 @@ const initializeSocket = (httpServer) => {
       socket.userId = user.id?.toString();
       socket.userRole = user.role || 'user';
       socket.userName = user.name || 'User';
-      console.log(`[Socket] ✅ Auth: ${socket.userName} (${socket.userId}) role=${socket.userRole}`);
+      console.log("[Socket] ✅ Auth");
       next();
     } catch (error) {
       console.error('[Socket] Auth error:', error.message);
@@ -35,7 +35,7 @@ const initializeSocket = (httpServer) => {
   });
 
   io.on('connection', (socket) => {
-    console.log(`[Socket] ✅ Connected: ${socket.userName}`);
+    console.log(`[Socket] ✅ Connected`);
     onlineUsers.set(socket.userId, socket.id);
     
     socket.join(`user:${socket.userId}`);
@@ -43,7 +43,7 @@ const initializeSocket = (httpServer) => {
 
     // ==================== JOIN ROOM ====================
     socket.on('join-room', async ({ contactId }) => {
-      console.log(`[Socket] 🚪 join-room: ${contactId} by ${socket.userName}`);
+      console.log(`[Socket] 🚪 join-room`);
       try {
         if (!contactId) return;
 
@@ -62,7 +62,7 @@ const initializeSocket = (httpServer) => {
         }
 
         socket.join(`contact:${contactId}`);
-        console.log(`[Socket] ✅ ${socket.userName} joined contact:${contactId}`);
+        console.log(`[Socket] ✅`);
 
         const messages = (contact.messages || []).map((msg) => {
           if (!isAdmin && msg.sender === 'admin' && msg.status === 'sent') {
@@ -91,13 +91,13 @@ const initializeSocket = (httpServer) => {
     socket.on('leave-room', ({ contactId }) => {
       if (contactId) {
         socket.leave(`contact:${contactId}`);
-        console.log(`[Socket] ${socket.userName} left contact:${contactId}`);
+        console.log(`[Socket] left contact`);
       }
     });
 
     // ==================== SEND MESSAGE ====================
     socket.on('send-message', async ({ contactId, text, clientId, type, fileUrl, fileName, fileSize, mimeType }) => {
-      console.log(`[Socket] 📩 send-message: ${socket.userName} -> ${contactId} (type: ${type || 'text'})`);
+      console.log(`[Socket] 📩 send-message -> text`);
       try {
         if (!contactId) return;
         
@@ -153,7 +153,7 @@ const initializeSocket = (httpServer) => {
           },
         });
 
-        console.log(`[Socket] ✅ Message saved (type: ${messageType}, status: ${newMessage.status})`);
+        console.log(`[Socket] ✅ Message saved , status`);
 
         io.to(`contact:${contactId}`).emit('new-message', {
           contactId,
@@ -226,7 +226,7 @@ const initializeSocket = (httpServer) => {
 
     // ==================== DISCONNECT ====================
     socket.on('disconnect', () => {
-      console.log(`[Socket] ❌ Disconnected: ${socket.userName}`);
+      console.log(`[Socket] ❌ Disconnected`);
       onlineUsers.delete(socket.userId);
       socket.broadcast.emit('user-offline', { userId: socket.userId });
     });

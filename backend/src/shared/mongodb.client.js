@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { User, Project, ProjectVersion, Contact } = require('../../models');
+const { User, Project, ProjectVersion, Contact } = require('../models');
 
 const connectMongoDB = async () => {
   if (mongoose.connection.readyState === 1) return;

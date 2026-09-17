@@ -17,6 +17,7 @@ type AdminUser = {
   projectCount: number;
   apiUsage: number;
   apiRemaining: number;
+  profilePic?: string | null; // ✅ added
 };
 
 export default function AdminPage() {
@@ -24,6 +25,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState("");
+  const [previewImage, setPreviewImage] = useState<string | null>(null); // ✅ modal
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -72,8 +74,8 @@ export default function AdminPage() {
             Open Chats
           </Link>
         </div>
-        {/* ✅ Contact Requests Panel — users table ke upar */}
-        <AdminContactPanel />
+
+        <AdminContactPanel onImageClick={setPreviewImage} />
 
         {/* Users Table */}
         <h1 className="text-3xl font-bold mt-10">Admin users</h1>
@@ -88,6 +90,7 @@ export default function AdminPage() {
             <thead className="bg-white/5 text-gray-400">
               <tr>
                 <th className="p-4">Sr. No.</th>
+                <th className="p-4">Pic</th>
                 <th className="p-4">Name</th>
                 <th className="p-4">Email</th>
                 <th className="p-4">Projects</th>
@@ -101,6 +104,16 @@ export default function AdminPage() {
               {users.map((user, index) => (
                 <tr key={user.id} className="border-t border-white/10">
                   <td className="p-4 text-gray-500">{index + 1}</td>
+                  <td className="p-4">
+                    <img
+                      src={user.profilePic || "/default-avatar.png"}
+                      alt={user.name || "user"}
+                      className="w-14 h-14 rounded-full object-cover cursor-pointer border border-white/20 hover:scale-105 transition"
+                      onClick={() =>
+                        setPreviewImage(user.profilePic || "/default-avatar.png")
+                      }
+                    />
+                  </td>
                   <td className="p-4">{user.name || "—"}</td>
                   <td className="p-4">{user.email}</td>
                   <td className="p-4 text-cyan-300">{user.projectCount}</td>
@@ -120,6 +133,31 @@ export default function AdminPage() {
           </table>
         </div>
       </div>
+
+      {/* ✅ Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-3xl max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={previewImage}
+              alt="preview"
+              className="max-w-full max-h-[85vh] rounded-2xl border border-white/20 shadow-2xl"
+            />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white text-black font-bold hover:bg-gray-200 transition"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

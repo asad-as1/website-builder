@@ -1,5 +1,18 @@
-const db = require('../../shared/mongodb/mongodb.client');
-const emailService = require('../../shared/email/email.service');
+const db = require('../shared/mongodb.client');
+const emailService = require('../services/email.service');
+
+// ✅ Helper: Get admin info (avatar + name)
+const getAdminInfo = async () => {
+  try {
+    const admin = await db.user.findFirst({
+      where: { role: process.env.ADMIN_ROLE || 'adminasad90' },
+      select: { name: true, avatar: true },
+    });
+    return admin || { name: 'Admin', avatar: null };
+  } catch {
+    return { name: 'Admin', avatar: null };
+  }
+};
 
 // ==================== SUBMIT CONTACT ====================
 const submitContact = async (userId, { projectId, changes, budget, priority, attachment }) => {
@@ -15,10 +28,8 @@ const submitContact = async (userId, { projectId, changes, budget, priority, att
     if (project) projectName = project.name;
   }
 
-  // ✅ Build initial messages array
   const initialMessages = [];
 
-  // ✅ Message 1: Text description
   initialMessages.push({
     sender: 'user',
     type: 'text',
@@ -28,23 +39,21 @@ const submitContact = async (userId, { projectId, changes, budget, priority, att
     status: 'sent',
   });
 
-  // ✅ Message 2: Attachment (if exists)
   if (attachment?.url) {
     initialMessages.push({
       sender: 'user',
       type: attachment.type || 'document',
-      text: '', // caption empty
+      text: '',
       fileUrl: attachment.url,
       fileName: attachment.fileName,
       fileSize: attachment.fileSize,
       mimeType: attachment.mimeType,
-      timestamp: new Date(Date.now() + 100), // slight offset
+      timestamp: new Date(Date.now() + 100),
       read: false,
       status: 'sent',
     });
   }
 
-  // ✅ Last message preview — attachment ho toh woh
   let lastMessagePreview = changes;
   if (attachment?.url) {
     if (attachment.type === 'image') lastMessagePreview = '📷 Photo';
@@ -62,7 +71,6 @@ const submitContact = async (userId, { projectId, changes, budget, priority, att
       budget,
       priority: priority || 'normal',
       status: 'pending',
-      // ✅ Top-level attachment (reference ke liye)
       attachment: attachment || {
         type: null,
         url: null,
@@ -70,16 +78,14 @@ const submitContact = async (userId, { projectId, changes, budget, priority, att
         fileSize: null,
         mimeType: null,
       },
-      // ✅ Messages array mein text + attachment dono
       messages: initialMessages,
       lastMessage: lastMessagePreview,
       lastMessageAt: new Date(),
-      unreadByAdmin: initialMessages.length, // ✅ Jitne messages, utne unread
+      unreadByAdmin: initialMessages.length,
       unreadByUser: 0,
     },
   });
 
-  // Send email to admin
   await emailService.sendContactEmail({
     name: user.name,
     email: user.email,
@@ -102,12 +108,39 @@ const getUserHistory = async (userId) => {
   return contacts;
 };
 
+// ✅ NEW: Get user history with admin info
+const getUserHistoryWithAdmin = async (userId) => {
+  const [contacts, admin] = await Promise.all([
+    getUserHistory(userId),
+    getAdminInfo(),
+  ]);
+  return { contacts, admin };
+};
+
 // ==================== GET ALL CONTACTS (ADMIN) ====================
 const getAllContacts = async () => {
   const contacts = await db.contact.findMany({
     orderBy: { createdAt: -1 },
   });
-  return contacts;
+
+  // ✅ Fetch user avatars for each contact
+  const contactsWithAvatars = await Promise.all(
+    contacts.map(async (contact) => {
+      let profilePic = null;
+      try {
+        const user = await db.user.findUnique({
+          where: { id: contact.userId },
+          select: { avatar: true },
+        });
+        profilePic = user?.avatar || null;
+      } catch {
+        profilePic = null;
+      }
+      return { ...contact, profilePic };
+    })
+  );
+
+  return contactsWithAvatars;
 };
 
 // ==================== ADMIN REPLY ====================
@@ -159,6 +192,7 @@ const deleteContact = async (contactId) => {
 module.exports = {
   submitContact,
   getUserHistory,
+  getUserHistoryWithAdmin,
   getAllContacts,
   adminReply,
   updateStatus,

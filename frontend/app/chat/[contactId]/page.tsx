@@ -43,6 +43,12 @@ type Contact = {
   messages: Message[];
 };
 
+// ✅ NEW: Admin info type
+type AdminInfo = {
+  name: string;
+  avatar: string | null;
+};
+
 function MessageTicks({ status }: { status: MessageStatus }) {
   const iconClass = "w-3.5 h-3.5";
 
@@ -73,6 +79,7 @@ export default function ChatRoomPage() {
   const { socket, isConnected } = useSocket();
 
   const [contact, setContact] = useState<Contact | null>(null);
+  const [adminInfo, setAdminInfo] = useState<AdminInfo | null>(null); // ✅ NEW
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -87,7 +94,6 @@ export default function ChatRoomPage() {
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Viewer state — image aur pdf dono ke liye
   const [viewingFile, setViewingFile] = useState<{ url: string; type: "image" | "pdf" } | null>(null);
 
   useEffect(() => {
@@ -105,6 +111,10 @@ export default function ChatRoomPage() {
         if (found) {
           setContact(found);
           setMessages(found.messages || []);
+        }
+        // ✅ Save admin info
+        if (res.data.admin) {
+          setAdminInfo(res.data.admin);
         }
       })
       .catch(() => {})
@@ -195,7 +205,6 @@ export default function ChatRoomPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ✅ 10MB limit
     if (file.size > 10 * 1024 * 1024) {
       setUploadError("File too large. Maximum 10MB allowed.");
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -205,14 +214,10 @@ export default function ChatRoomPage() {
     setSelectedFile(file);
     setUploadError("");
 
-    // ✅ Image preview
     if (file.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onloadend = () => setFilePreview(reader.result as string);
       reader.readAsDataURL(file);
-    } else if (file.type === "application/pdf") {
-      // ✅ PDF preview — icon
-      setFilePreview(null);
     } else {
       setFilePreview(null);
     }
@@ -286,8 +291,6 @@ export default function ChatRoomPage() {
       const { fileUrl, fileName, fileSize, mimeType, type } = uploadRes.data;
 
       const clientId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      
-      // ✅ PDF ko bhi 'image' type karo — modal mein open hoga
       const isPdf = mimeType === "application/pdf";
       const messageType: MessageType = (type === "image" || isPdf) ? "image" : "document";
       const caption = newMessage.trim();
@@ -365,7 +368,6 @@ export default function ChatRoomPage() {
     }
   };
 
-  // ✅ File click handler — image ya pdf modal open
   const openFileViewer = (url: string, mimeType?: string | null, fileName?: string | null) => {
     const isPdf = mimeType === "application/pdf" || fileName?.toLowerCase().endsWith(".pdf");
     setViewingFile({ url, type: isPdf ? "pdf" : "image" });
@@ -395,9 +397,31 @@ export default function ChatRoomPage() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="relative shrink-0">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-semibold text-sm shadow-lg shadow-purple-500/20">
-              A
-            </div>
+            {/* ✅ Admin Avatar */}
+            {adminInfo?.avatar ? (
+              <img
+                src={adminInfo.avatar}
+                alt={"Admin"}
+                className="w-16 h-16 rounded-full object-cover border border-white/10"
+                onError={(e) => {
+                  // Fallback to first letter
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = "none";
+                  const parent = target.parentElement;
+                  if (parent) {
+                    const fallback = document.createElement("div");
+                    fallback.className =
+                      "w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-semibold text-sm shadow-lg shadow-purple-500/20";
+                    fallback.textContent = "A"
+                    parent.appendChild(fallback);
+                  }
+                }}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-semibold text-sm shadow-lg shadow-purple-500/20">
+                A
+              </div>
+            )}
             <span
               className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0a0f] ${
                 isConnected ? "bg-emerald-400" : "bg-gray-500"
@@ -405,9 +429,13 @@ export default function ChatRoomPage() {
             />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold leading-tight truncate">Asad Admin</h2>
+            <h2 className="font-semibold leading-tight truncate">
+              Admin
+            </h2>
             <p className="text-xs text-gray-400 truncate">
-              {isConnected ? `${contact?.projectName} • Online` : "Connecting…"}
+              {isConnected
+                ? `${(contact?.projectName)?.toUpperCase() || "General Request"} • Online`
+                : "Connecting…"}
             </p>
           </div>
         </div>
@@ -439,14 +467,12 @@ export default function ChatRoomPage() {
                       : "bg-white/[0.06] border border-white/[0.06] text-gray-100 rounded-bl-md"
                   }`}
                 >
-                  {/* ✅ IMAGE / PDF VIEWABLE */}
                   {isViewable && msg.fileUrl && (
                     <button
                       onClick={() => openFileViewer(msg.fileUrl!, msg.mimeType, msg.fileName)}
                       className="block w-full"
                     >
                       {isPdfMsg ? (
-                        // PDF preview — icon with filename
                         <div className={`flex items-center gap-3 px-4 py-4 ${isUser ? "bg-white/5" : "bg-white/[0.03]"}`}>
                           <div className={`p-3 rounded-lg ${isUser ? "bg-white/15" : "bg-white/10"}`}>
                             <FileText className="w-6 h-6" />
@@ -459,7 +485,6 @@ export default function ChatRoomPage() {
                           </div>
                         </div>
                       ) : (
-                        // Image preview
                         <img
                           src={msg.fileUrl}
                           alt={msg.fileName || "attachment"}
@@ -469,7 +494,6 @@ export default function ChatRoomPage() {
                     </button>
                   )}
 
-                  {/* ✅ DOCUMENT (non-pdf, non-image) */}
                   {msgType === "document" && msg.fileUrl && (
                     <a
                       href={msg.fileUrl}
@@ -493,7 +517,6 @@ export default function ChatRoomPage() {
                     </a>
                   )}
 
-                  {/* Caption / Text */}
                   {msg.text && (
                     <div className="px-4 py-2.5">
                       <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text}</p>
@@ -591,7 +614,7 @@ export default function ChatRoomPage() {
             <button
               onClick={selectedFile ? handleSendFile : handleSend}
               disabled={
-                selectedFile 
+                selectedFile
                   ? (!isConnected || isUploading)
                   : (!newMessage.trim() || !isConnected)
               }
@@ -607,7 +630,6 @@ export default function ChatRoomPage() {
         </div>
       </div>
 
-      {/* ✅ File Viewer Modal — Image + PDF */}
       {viewingFile && (
         <div
           className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
@@ -621,7 +643,6 @@ export default function ChatRoomPage() {
           </button>
 
           {viewingFile.type === "pdf" ? (
-            // ✅ PDF viewer
             <iframe
               src={viewingFile.url}
               title="PDF viewer"
@@ -629,7 +650,6 @@ export default function ChatRoomPage() {
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            // ✅ Image viewer
             <img
               src={viewingFile.url}
               alt="fullscreen"

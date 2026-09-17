@@ -1,4 +1,5 @@
-const db = require('../../shared/mongodb/mongodb.client');
+const db = require('../../shared/mongodb.client');
+
 const requireAdmin = async (req, res, next) => {
   try {
     const user = await db.user.findUnique({ where: { id: req.userId }, select: { role: true, isActive: true } });

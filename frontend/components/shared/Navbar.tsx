@@ -4,15 +4,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Menu, X, LogOut, LayoutDashboard, FolderGit2, User, UserCircle, WandSparkles, Eye , Send, MessageSquare } from "lucide-react";
-import LogoutModal from "./LogoutModal"; 
+import { Menu, X, LogOut, LayoutDashboard, FolderGit2, User, UserCircle, Send, MessageSquare } from "lucide-react";
+import LogoutModal from "./LogoutModal";
 
 export default function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false); 
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [hasAvatarError, setHasAvatarError] = useState(false);
 
   // Handle scroll effect
@@ -29,37 +29,42 @@ export default function Navbar() {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
+  // ✅ Reset avatar error when image changes
   useEffect(() => {
     setHasAvatarError(false);
   }, [session?.user?.image]);
 
   const isAdmin = session?.user?.role !== "user";
 
-const navLinks = session
-  ? [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/projects", label: "Projects", icon: FolderGit2 },
-      
+  const navLinks = session
+    ? [
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/projects", label: "Projects", icon: FolderGit2 },
 
-      ...(isAdmin ? [
-        { href: "/admin", label: "Admin", icon: UserCircle },
-        { href: "/admin/chat", label: "Chats", icon: MessageSquare },
-      ] : []),
+        ...(isAdmin
+          ? [
+              { href: "/admin", label: "Admin", icon: UserCircle },
+              { href: "/admin/chat", label: "Chats", icon: MessageSquare },
+            ]
+          : []),
 
-      ...(!isAdmin ? [
-        { href: "/chat", label: "Chats", icon: MessageSquare },
-        { href: "/contact/history", label: "My Requests", icon: MessageSquare },
-        { href: "/contact", label: "Contact", icon: Send },
-      ] : []),
+        ...(!isAdmin
+          ? [
+              { href: "/chat", label: "Chats", icon: MessageSquare },
+              { href: "/contact/history", label: "My Requests", icon: MessageSquare },
+              { href: "/contact", label: "Contact", icon: Send },
+            ]
+          : []),
 
-      { href: "/profile", label: "Profile", icon: UserCircle },
-    ]
-  : [];
+        { href: "/profile", label: "Profile", icon: UserCircle },
+      ]
+    : [];
 
   const getUserAvatar = () => {
     if (session?.user?.image && !hasAvatarError) {
       return (
         <img
+          key={session.user.image} // ✅ Force re-render on URL change
           src={session.user.image}
           alt="Profile"
           referrerPolicy="no-referrer"
@@ -71,7 +76,10 @@ const navLinks = session
     const name = session?.user?.name || "User";
     const initial = name.charAt(0).toUpperCase();
     return (
-      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-xs font-bold">
+      <div
+        key={`fallback-${session?.user?.image || "no-image"}`} // ✅ Force re-render on change
+        className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-xs font-bold"
+      >
         {initial}
       </div>
     );
@@ -81,13 +89,13 @@ const navLinks = session
     const name = session?.user?.name || "User";
     const parts = name.split(" ");
     const wordCount = parts.length;
-    
+
     if (wordCount >= 3) {
-        return parts[0] + " " + parts[1];
+      return parts[0] + " " + parts[1];
     } else {
-        return parts[0];
+      return parts[0];
     }
-};
+  };
 
   return (
     <>
@@ -140,7 +148,7 @@ const navLinks = session
                     </span>
                   </div>
                   <button
-                    onClick={() => setIsLogoutModalOpen(true)} // ✅ Open modal
+                    onClick={() => setIsLogoutModalOpen(true)}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200 flex items-center gap-2"
                   >
                     <LogOut className="w-4 h-4" />
@@ -202,7 +210,6 @@ const navLinks = session
               ))}
 
               {session ? (
-                <>
                 <button
                   onClick={() => {
                     setIsMobileMenuOpen(false);
@@ -213,7 +220,6 @@ const navLinks = session
                   <LogOut className="w-5 h-5" />
                   Logout
                 </button>
-                </>
               ) : (
                 <>
                   <Link
@@ -236,10 +242,9 @@ const navLinks = session
         </div>
       </header>
 
-      
-      <LogoutModal 
-        isOpen={isLogoutModalOpen} 
-        onClose={() => setIsLogoutModalOpen(false)} 
+      <LogoutModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
       />
     </>
   );

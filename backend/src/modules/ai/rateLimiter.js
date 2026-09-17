@@ -1,4 +1,4 @@
-const db = require('../../shared/mongodb/mongodb.client');
+const db = require('../../shared/mongodb.client');
 
 const checkRateLimit = async (userId) => {
   const user = await db.user.findUnique({

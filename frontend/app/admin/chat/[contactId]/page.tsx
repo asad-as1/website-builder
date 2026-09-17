@@ -40,6 +40,7 @@ type Contact = {
   id: string;
   name: string;
   email: string;
+  profilePic?: string | null; // ✅ Add
   projectName: string;
   budget: string;
   priority: string;
@@ -401,9 +402,31 @@ export default function AdminChatRoomPage() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="relative shrink-0">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-semibold text-sm shadow-lg shadow-purple-500/20">
-              {(contact?.name || "U").charAt(0).toUpperCase()}
-            </div>
+            {/* ✅ User Avatar */}
+            {contact?.profilePic ? (
+              <img
+                src={contact.profilePic}
+                alt={contact.name || "User"}
+                className="w-16 h-16 rounded-full object-cover border border-white/10"
+                onError={(e) => {
+                  // Fallback to first letter
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = "none";
+                  const parent = target.parentElement;
+                  if (parent) {
+                    const fallback = document.createElement("div");
+                    fallback.className =
+                      "w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-semibold text-sm shadow-lg shadow-purple-500/20";
+                    fallback.textContent = (contact.name || "U").charAt(0).toUpperCase();
+                    parent.appendChild(fallback);
+                  }
+                }}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-semibold text-sm shadow-lg shadow-purple-500/20">
+                {(contact?.name || "U").charAt(0).toUpperCase()}
+              </div>
+            )}
             <span
               className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0a0f] ${
                 isConnected ? "bg-emerald-400" : "bg-gray-500"
@@ -417,7 +440,7 @@ export default function AdminChatRoomPage() {
             </p>
           </div>
           {contact?.priority && (
-            <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/5 border border-white/10 text-gray-300 shrink-0">
+            <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[14px] font-medium bg-white/5 border border-white/10 text-gray-300 shrink-0">
               {contact.priority}
             </span>
           )}

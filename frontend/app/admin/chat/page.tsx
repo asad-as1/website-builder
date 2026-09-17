@@ -5,7 +5,16 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
-import { MessageSquare, Clock, CheckCircle, AlertCircle, ChevronRight, Search, Inbox, MailOpen } from "lucide-react";
+import {
+  MessageSquare,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  ChevronRight,
+  Search,
+  Inbox,
+  MailOpen,
+} from "lucide-react";
 import Spinner from "@/components/shared/Spinner";
 import { useSocket } from "@/app/providers/SocketProvider";
 
@@ -13,6 +22,7 @@ type Contact = {
   id: string;
   name: string;
   email: string;
+  profilePic?: string | null;
   projectName: string;
   lastMessage: string;
   lastMessageAt: string;
@@ -21,10 +31,25 @@ type Contact = {
   createdAt: string;
 };
 
-const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
-  pending: { label: "Pending", color: "text-yellow-400 bg-yellow-500/10", icon: Clock },
-  "in-progress": { label: "In Progress", color: "text-cyan-400 bg-cyan-500/10", icon: AlertCircle },
-  completed: { label: "Completed", color: "text-green-400 bg-green-500/10", icon: CheckCircle },
+const statusConfig: Record<
+  string,
+  { label: string; color: string; icon: any }
+> = {
+  pending: {
+    label: "Pending",
+    color: "text-yellow-400 bg-yellow-500/10",
+    icon: Clock,
+  },
+  "in-progress": {
+    label: "In Progress",
+    color: "text-cyan-400 bg-cyan-500/10",
+    icon: AlertCircle,
+  },
+  completed: {
+    label: "Completed",
+    color: "text-green-400 bg-green-500/10",
+    icon: CheckCircle,
+  },
 };
 
 type FilterType = "all" | "unread" | "read";
@@ -62,7 +87,7 @@ export default function AdminChatListPage() {
     // If the contact isn't in local state yet (brand new conversation), refetch quietly.
     const upsertAndBubbleUp = (
       contactId: string,
-      updater: (c: Contact) => Contact
+      updater: (c: Contact) => Contact,
     ) => {
       setContacts((prev) => {
         const idx = prev.findIndex((c) => c.id === contactId);
@@ -70,7 +95,9 @@ export default function AdminChatListPage() {
           if (session?.user?.accessToken) {
             axios
               .get(`${process.env.NEXT_PUBLIC_API_URL}/contact/admin/all`, {
-                headers: { Authorization: `Bearer ${session.user.accessToken}` },
+                headers: {
+                  Authorization: `Bearer ${session.user.accessToken}`,
+                },
               })
               .then((res) => setContacts(res.data.contacts || []))
               .catch(() => {});
@@ -101,7 +128,9 @@ export default function AdminChatListPage() {
     const handleMessagesRead = ({ contactId, readBy }: any) => {
       if (readBy === "admin") {
         setContacts((prev) =>
-          prev.map((c) => (c.id === contactId ? { ...c, unreadByAdmin: 0 } : c))
+          prev.map((c) =>
+            c.id === contactId ? { ...c, unreadByAdmin: 0 } : c,
+          ),
         );
       }
     };
@@ -134,22 +163,24 @@ export default function AdminChatListPage() {
   const filteredContacts = useMemo(() => {
     let list = [...contacts];
 
-    if (filter === "unread") list = list.filter((c) => (c.unreadByAdmin || 0) > 0);
-    if (filter === "read") list = list.filter((c) => (c.unreadByAdmin || 0) === 0);
+    if (filter === "unread")
+      list = list.filter((c) => (c.unreadByAdmin || 0) > 0);
+    if (filter === "read")
+      list = list.filter((c) => (c.unreadByAdmin || 0) === 0);
 
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((c) =>
         [c.name, c.email, c.projectName, c.lastMessage]
           .filter(Boolean)
-          .some((field) => field.toLowerCase().includes(q))
+          .some((field) => field.toLowerCase().includes(q)),
       );
     }
 
     return list.sort(
       (a, b) =>
         new Date(b.lastMessageAt || b.createdAt).getTime() -
-        new Date(a.lastMessageAt || a.createdAt).getTime()
+        new Date(a.lastMessageAt || a.createdAt).getTime(),
     );
   }, [contacts, search, filter]);
 
@@ -165,7 +196,10 @@ export default function AdminChatListPage() {
     );
   }
 
-  const totalUnread = contacts.reduce((sum, c) => sum + (c.unreadByAdmin || 0), 0);
+  const totalUnread = contacts.reduce(
+    (sum, c) => sum + (c.unreadByAdmin || 0),
+    0,
+  );
 
   const filterTabs: { key: FilterType; label: string; icon: any }[] = [
     { key: "all", label: "All", icon: Inbox },
@@ -219,8 +253,8 @@ export default function AdminChatListPage() {
               tab.key === "all"
                 ? contacts.length
                 : tab.key === "unread"
-                ? contacts.filter((c) => (c.unreadByAdmin || 0) > 0).length
-                : contacts.filter((c) => (c.unreadByAdmin || 0) === 0).length;
+                  ? contacts.filter((c) => (c.unreadByAdmin || 0) > 0).length
+                  : contacts.filter((c) => (c.unreadByAdmin || 0) === 0).length;
             return (
               <button
                 key={tab.key}
@@ -243,7 +277,9 @@ export default function AdminChatListPage() {
           <div className="glass p-12 rounded-2xl text-center">
             <MessageSquare className="w-12 h-12 text-gray-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">
-              {contacts.length === 0 ? "No conversations yet" : "No matching conversations"}
+              {contacts.length === 0
+                ? "No conversations yet"
+                : "No matching conversations"}
             </h3>
             <p className="text-gray-400 text-sm">
               {contacts.length === 0
@@ -254,7 +290,8 @@ export default function AdminChatListPage() {
         ) : (
           <div className="space-y-3">
             {filteredContacts.map((contact) => {
-              const config = statusConfig[contact.status] || statusConfig.pending;
+              const config =
+                statusConfig[contact.status] || statusConfig.pending;
               const StatusIcon = config.icon;
               const hasUnread = (contact.unreadByAdmin || 0) > 0;
               return (
@@ -267,32 +304,64 @@ export default function AdminChatListPage() {
                       : "border-white/5 hover:border-cyan-500/30 hover:bg-white/[0.07]"
                   }`}
                 >
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-bold text-lg flex-shrink-0">
-                    {(contact.name || "U").charAt(0).toUpperCase()}
-                  </div>
+                  {contact.profilePic ? (
+                    <img
+                      src={contact.profilePic}
+                      alt={contact.name || "User"}
+                      className="w-16 h-16 rounded-full object-cover flex-shrink-0 border border-white/10"
+                      onError={(e) => {
+                        // Fallback to first letter
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = "none";
+                        const parent = target.parentElement;
+                        if (parent) {
+                          const fallback = document.createElement("div");
+                          fallback.className =
+                            "w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-bold text-lg";
+                          fallback.textContent = (contact.name || "U")
+                            .charAt(0)
+                            .toUpperCase();
+                          parent.appendChild(fallback);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                      {(contact.name || "U").charAt(0).toUpperCase()}
+                    </div>
+                  )}
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <h3 className={`truncate ${hasUnread ? "font-bold text-white" : "font-semibold"}`}>
+                      <h3
+                        className={`truncate ${hasUnread ? "font-bold text-white" : "font-semibold"}`}
+                      >
                         {contact.name}
                       </h3>
                       <span className="text-xs text-gray-500 flex-shrink-0">
                         {contact.lastMessageAt
-                          ? new Date(contact.lastMessageAt).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                            })
+                          ? new Date(contact.lastMessageAt).toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "numeric",
+                                month: "short",
+                              },
+                            )
                           : ""}
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mb-1 truncate">
                       {contact.projectName || "General Request"}
                     </p>
-                    <p className={`text-sm truncate ${hasUnread ? "text-gray-200" : "text-gray-400"}`}>
+                    <p
+                      className={`text-sm truncate ${hasUnread ? "text-gray-200" : "text-gray-400"}`}
+                    >
                       {contact.lastMessage || "No messages yet"}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${config.color}`}>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${config.color}`}
+                      >
                         <StatusIcon className="w-3 h-3" />
                         {config.label}
                       </span>
