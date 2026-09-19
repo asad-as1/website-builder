@@ -51,9 +51,12 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 text-xl font-bold">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
-                <span className="text-white text-sm font-black">G</span>
-              </div>
+              {/* ✅ Logo Image */}
+              <img
+                src="/logo.png"
+                alt="Genetix"
+                className="w-12 h-12 rounded-full object-cover shadow-lg shadow-purple-500/25"
+              />
               <span className="gradient-text">Genetix</span>
             </Link>
             <p className="text-gray-500 text-sm mt-3 max-w-xs">

@@ -382,7 +382,7 @@ export default function ChatRoomPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0f] text-white flex flex-col relative overflow-hidden">
+    <main className="min-h-screen bg-[#0a0a0f] text-white flex flex-col relative overflow-hidden mt-8">
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute -top-32 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px]" />
         <div className="absolute top-1/3 -right-20 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px]" />

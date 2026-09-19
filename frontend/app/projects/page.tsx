@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import ConfirmationModal from "@/components/shared/ConfirmationModal";
-import { Image as ImageIcon, Upload, X, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Upload, X, Loader2, ChevronDown, Check } from "lucide-react";
 
 type Project = {
   id: string;
@@ -18,12 +18,107 @@ type Project = {
   updatedAt?: string;
 };
 
+type DropdownOption = {
+  value: string;
+  label: string;
+};
+
 const slug = (name: string) =>
   name
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "project";
+
+// ✅ Reusable custom dropdown (same as contact page)
+function CustomDropdown({
+  value,
+  options,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  options: DropdownOption[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-left flex items-center justify-between gap-2 transition-colors text-sm ${
+          open
+            ? "border-cyan-400 bg-white/[0.07]"
+            : "border-white/10 hover:border-white/20 hover:bg-white/[0.07]"
+        }`}
+      >
+        <span className={selected ? "text-white" : "text-gray-500"}>
+          {selected ? selected.label : placeholder || "Select…"}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute z-20 mt-2 w-full max-h-64 overflow-auto rounded-lg border border-white/10 bg-[#14141c] shadow-xl shadow-black/40 backdrop-blur-xl py-1"
+        >
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <li key={opt.value || "__empty"} role="option" aria-selected={isSelected}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full px-4 py-2.5 flex items-center justify-between gap-2 text-left text-sm transition-colors ${
+                    isSelected
+                      ? "bg-gradient-to-r from-cyan-500/20 to-purple-600/20 text-white"
+                      : "text-gray-300 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected && <Check className="w-4 h-4 text-cyan-300 shrink-0" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function ProjectsPage() {
   const { data: session, status } = useSession();
@@ -142,7 +237,6 @@ export default function ProjectsPage() {
         }
       );
 
-      // ✅ Update local state
       setProjects((current) =>
         current.map((p) =>
           p.id === thumbProject.id
@@ -158,6 +252,12 @@ export default function ProjectsPage() {
       setIsUploading(false);
     }
   };
+
+  const filterOptions: DropdownOption[] = [
+    { value: "all", label: "All statuses" },
+    { value: "completed", label: "Completed" },
+    { value: "draft", label: "Draft" },
+  ];
 
   const visibleProjects = projects.filter((project) => {
     const matchesQuery = `${project.name} ${project.prompt}`
@@ -181,15 +281,13 @@ export default function ProjectsPage() {
               placeholder="Search projects..."
               className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-cyan-400"
             />
-            <select
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              className="rounded-xl border border-white/10 bg-[#171722] px-4 py-3 text-sm text-gray-300 outline-none"
-            >
-              <option value="all">All statuses</option>
-              <option value="completed">Completed</option>
-              <option value="draft">Draft</option>
-            </select>
+            <div className="sm:w-48">
+              <CustomDropdown
+                value={filter}
+                options={filterOptions}
+                onChange={setFilter}
+              />
+            </div>
           </div>
         )}
         {projects.length === 0 ? (
@@ -222,7 +320,6 @@ export default function ProjectsPage() {
                   <div
                     className={`group relative mb-4 flex h-40 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br ${project.thumbnail?.gradient || "from-cyan-500/20 to-purple-600/20"}`}
                   >
-                    {/* ✅ Priority: thumbnailImage > previewUrl iframe > emoji */}
                     {project.thumbnailImage ? (
                       <img
                         src={project.thumbnailImage}
@@ -243,7 +340,6 @@ export default function ProjectsPage() {
                       </span>
                     )}
 
-                    {/* ✅ Edit thumbnail button — hover pe */}
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -294,7 +390,6 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Delete Confirmation */}
       <ConfirmationModal
         isOpen={Boolean(selectedProject)}
         title="Delete this project?"
@@ -308,7 +403,6 @@ export default function ProjectsPage() {
         }
       />
 
-      {/* ✅ Edit Thumbnail Modal */}
       {thumbProject && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 max-w-md w-full">
@@ -326,7 +420,6 @@ export default function ProjectsPage() {
               </button>
             </div>
 
-            {/* File input hidden */}
             <input
               ref={fileInputRef}
               type="file"

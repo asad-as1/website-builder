@@ -64,7 +64,7 @@ export default function Navbar() {
     if (session?.user?.image && !hasAvatarError) {
       return (
         <img
-          key={session.user.image} // ✅ Force re-render on URL change
+          key={session.user.image}
           src={session.user.image}
           alt="Profile"
           referrerPolicy="no-referrer"
@@ -77,7 +77,7 @@ export default function Navbar() {
     const initial = name.charAt(0).toUpperCase();
     return (
       <div
-        key={`fallback-${session?.user?.image || "no-image"}`} // ✅ Force re-render on change
+        key={`fallback-${session?.user?.image || "no-image"}`}
         className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-xs font-bold"
       >
         {initial}
@@ -113,9 +113,12 @@ export default function Navbar() {
               href="/"
               className="group flex items-center gap-2.5 text-xl font-bold transition-all duration-300 hover:scale-105"
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/25 group-hover:shadow-purple-500/40 transition-shadow">
-                <span className="text-white text-sm font-black">G</span>
-              </div>
+              {/* ✅ Icon Image */}
+              <img
+                src="/logo.png"
+                alt="Genetix"
+                className="w-12 h-12 rounded-full object-cover shadow-lg shadow-purple-500/25 group-hover:shadow-purple-500/40 transition-shadow"
+              />
               <span className="gradient-text">Genetix</span>
             </Link>
 
