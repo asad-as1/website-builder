@@ -35,8 +35,8 @@ export default function SocketProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // ✅ Hardcoded URL for debugging
-    const backendUrl = "http://localhost:5000";
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:5000";
+    
     console.log("🔌 Connecting to socket:", backendUrl);
 
     const newSocket = io(backendUrl, {
