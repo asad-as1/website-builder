@@ -10,7 +10,7 @@ import LogoutModal from "./LogoutModal";
 export default function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [hasAvatarError, setHasAvatarError] = useState(false);
