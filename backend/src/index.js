@@ -13,9 +13,9 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors({
   origin: [
-    'http://localhost:3000',                    // Development
-    process.env.FRONTEND_URL,                    // Production (env se)
-  ].filter(Boolean),                             // Empty values remove
+    'http://localhost:3000',                    
+    process.env.FRONTEND_URL,                   
+  ].filter(Boolean),                        
   credentials: true,
 }));
 
@@ -25,9 +25,14 @@ app.use(express.json({
     req.rawBody = buffer;
   }
 }));
+
 app.use(express.urlencoded({ limit: '50mb', extended: true }));  
 
-// Auth routes
+
+app.get('/', (req, res) => {
+  res.json({ status: 'OK', message: 'Backend is running!' });
+});
+
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/ai', require('./routes/ai.routes'));
 app.use('/api/preview', require('./routes/preview.routes'));
@@ -43,7 +48,7 @@ console.log('✅ Socket.IO initialized');
 connectMongoDB()
   .then(() => server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`🔌 WebSocket ready on ws://localhost:${PORT}`);
+    console.log(`🔌 WebSocket ready on :${PORT}`);
   }))
   .catch((error) => {
     process.exit(1);
