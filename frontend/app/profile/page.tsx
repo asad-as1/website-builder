@@ -196,7 +196,7 @@ export default function ProfilePage() {
         </section>
 
         {error && <p className="mt-6 text-sm text-red-400">{error}</p>}
-        <button onClick={() => setConfirming(true)} className="mt-8 rounded-lg border border-red-500/40 px-4 py-2 text-sm text-red-300">Delete account</button>
+        {/* <button onClick={() => setConfirming(true)} className="mt-8 rounded-lg border border-red-500/40 px-4 py-2 text-sm text-red-300">Delete account</button> */}
       </div>
       {confirming && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-6"><div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#171722] p-6"><h2 className="text-xl font-semibold">Delete account?</h2><p className="mt-3 text-sm text-gray-400">Your account will be deactivated and you will be signed out.</p><div className="mt-6 flex justify-end gap-3"><button onClick={() => setConfirming(false)} className="rounded-lg bg-white/10 px-4 py-2">Cancel</button><button onClick={deleteAccount} className="rounded-lg bg-red-500 px-4 py-2 font-semibold">Delete account</button></div></div></div>}
     </main>

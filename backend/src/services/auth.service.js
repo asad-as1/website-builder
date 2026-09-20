@@ -1,9 +1,8 @@
-const bcrypt = require('bcryptjs');
-const db = require('../shared/mongodb.client');
-const jwtService = require('../services/jwt.service');
-const emailService = require('../services/email.service');
-const cloudinary = require('../shared/cloudinary.client');
-
+const bcrypt = require("bcryptjs");
+const db = require("../shared/mongodb.client");
+const jwtService = require("../services/jwt.service");
+const emailService = require("../services/email.service");
+const cloudinary = require("../shared/cloudinary.client");
 
 const uploadAvatarToCloudinary = async (fileBuffer, userId = null) => {
   return new Promise((resolve, reject) => {
@@ -12,11 +11,11 @@ const uploadAvatarToCloudinary = async (fileBuffer, userId = null) => {
       : `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const stream = cloudinary.uploader.upload_stream(
       {
-        folder: 'genetix/avatars',
+        folder: "genetix/avatars",
         public_id: publicId,
         transformation: [
-          { width: 400, height: 400, crop: 'fill', gravity: 'face' },
-          { quality: 'auto', fetch_format: 'auto' },
+          { width: 400, height: 400, crop: "fill", gravity: "face" },
+          { quality: "auto", fetch_format: "auto" },
         ],
       },
       (err, res) => (err ? reject(err) : resolve(res)),
@@ -28,11 +27,11 @@ const uploadAvatarToCloudinary = async (fileBuffer, userId = null) => {
 // ==================== REGISTER ====================
 const register = async ({ email, password, name }, avatarFile = null) => {
   const existingUser = await db.user.findUnique({
-    where: { email }
+    where: { email },
   });
 
   if (existingUser) {
-    throw new Error('User already exists');
+    throw new Error("User already exists");
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -56,46 +55,46 @@ const register = async ({ email, password, name }, avatarFile = null) => {
     data: {
       email,
       password: hashedPassword,
-      name: name || 'User',
+      name: name || "User",
       avatar: avatarUrl,
       emailVerified: false,
       verifyToken,
-      verifyTokenExpires: tokenExpiry
-    }
+      verifyTokenExpires: tokenExpiry,
+    },
   });
 
   await emailService.sendVerificationEmail(email, verifyToken);
 
   return {
-    message: 'User created. Please verify your email.',
+    message: "User created. Please verify your email.",
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
-      avatar: user.avatar
-    }
+      avatar: user.avatar,
+    },
   };
 };
 
 // ==================== VERIFY EMAIL ====================
 const verifyEmail = async (token) => {
   const user = await db.user.findFirst({
-    where: { verifyToken: token }
+    where: { verifyToken: token },
   });
 
   if (!user) {
-    throw new Error('Invalid or expired token');
+    throw new Error("Invalid or expired token");
   }
 
   if (user.verifyTokenExpires < new Date()) {
-    throw new Error('Token expired. Please request a new verification email.');
+    throw new Error("Token expired. Please request a new verification email.");
   }
 
   if (user.emailVerified) {
     return {
-      message: 'Email already verified.',
+      message: "Email already verified.",
       email: user.email,
-      alreadyVerified: true
+      alreadyVerified: true,
     };
   }
 
@@ -104,14 +103,14 @@ const verifyEmail = async (token) => {
     data: {
       emailVerified: true,
       verifyToken: null,
-      verifyTokenExpires: null
-    }
+      verifyTokenExpires: null,
+    },
   });
 
   const jwtToken = jwtService.generateToken(user.id);
 
   return {
-    message: 'Email verified successfully.',
+    message: "Email verified successfully.",
     email: user.email,
     token: jwtToken,
     user: {
@@ -119,28 +118,33 @@ const verifyEmail = async (token) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      role: user.role
-    }
+      role: user.role,
+    },
   };
 };
 
 // ==================== LOGIN ====================
 const login = async ({ email, password }) => {
   const user = await db.user.findUnique({
-    where: { email }
+    where: { email },
   });
 
   if (!user) {
-    throw new Error('Invalid credentials');
+    throw new Error("User Not Found. Please register first.");
   }
+
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      throw new Error("Invalid credentials");
+    }
 
   if (!user.isActive) {
-    throw new Error('Account deactivated. Contact support.');
+    throw new Error("Account deactivated. Contact support.");
   }
 
-  if (password === 'VERIFIED_BY_TOKEN') {
+  if (password === "VERIFIED_BY_TOKEN") {
     if (!user.emailVerified) {
-      throw new Error('Please verify your email first');
+      throw new Error("Please verify your email first");
     }
     const token = jwtService.generateToken(user.id);
     return {
@@ -150,22 +154,22 @@ const login = async ({ email, password }) => {
         email: user.email,
         name: user.name,
         avatar: user.avatar,
-        role: user.role
-      }
+        role: user.role,
+      },
     };
   }
 
   if (!user.password) {
-    throw new Error('Please login with Google');
+    throw new Error("Please login with Google");
   }
 
   if (!user.emailVerified) {
-    throw new Error('Please verify your email first');
+    throw new Error("Please verify your email first");
   }
 
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) {
-    throw new Error('Invalid credentials');
+    throw new Error("Invalid credentials");
   }
 
   const token = jwtService.generateToken(user.id);
@@ -177,24 +181,24 @@ const login = async ({ email, password }) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      role: user.role
-    }
+      role: user.role,
+    },
   };
 };
 
 // ==================== GOOGLE AUTH ====================
 const googleAuth = async ({ email, name, picture, googleId }) => {
   if (!email || !googleId) {
-    throw new Error('Email and googleId are required');
+    throw new Error("Email and googleId are required");
   }
 
   let user = await db.user.findUnique({
-    where: { googleId }
+    where: { googleId },
   });
 
   if (!user) {
     user = await db.user.findUnique({
-      where: { email }
+      where: { email },
     });
 
     if (user) {
@@ -204,18 +208,18 @@ const googleAuth = async ({ email, name, picture, googleId }) => {
           googleId,
           avatar: picture || user.avatar,
           emailVerified: true,
-          name: name || user.name
-        }
+          name: name || user.name,
+        },
       });
     } else {
       user = await db.user.create({
         data: {
           email,
-          name: name || 'User',
+          name: name || "User",
           avatar: picture || null,
           googleId,
-          emailVerified: true
-        }
+          emailVerified: true,
+        },
       });
     }
   }
@@ -229,8 +233,8 @@ const googleAuth = async ({ email, name, picture, googleId }) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      role: user.role
-    }
+      role: user.role,
+    },
   };
 };
 
@@ -248,16 +252,16 @@ const getMe = async (userId) => {
       previewUsage: true,
       emailVerified: true,
       isActive: true,
-      createdAt: true
-    }
+      createdAt: true,
+    },
   });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
   if (!user.isActive) {
-    throw new Error('Account deactivated. Contact support.');
+    throw new Error("Account deactivated. Contact support.");
   }
 
   return { user };
@@ -266,40 +270,42 @@ const getMe = async (userId) => {
 // ==================== DELETE ACCOUNT ====================
 const deleteAccount = async (userId) => {
   const user = await db.user.findUnique({
-    where: { id: userId }
+    where: { id: userId },
   });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
   if (!user.isActive) {
-    throw new Error('Account already deactivated');
+    throw new Error("Account already deactivated");
   }
 
   await db.user.update({
     where: { id: userId },
     data: {
       isActive: false,
-      deletedAt: new Date()
-    }
+      deletedAt: new Date(),
+    },
   });
 
-  return { message: 'Account deactivated successfully. Your data is retained.' };
+  return {
+    message: "Account deactivated successfully. Your data is retained.",
+  };
 };
 
 // ==================== RESEND VERIFICATION ====================
 const resendVerification = async (email) => {
   const user = await db.user.findUnique({
-    where: { email }
+    where: { email },
   });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
   if (user.emailVerified) {
-    throw new Error('Email already verified');
+    throw new Error("Email already verified");
   }
 
   const newToken = jwtService.generateEmailToken();
@@ -309,33 +315,33 @@ const resendVerification = async (email) => {
     where: { id: user.id },
     data: {
       verifyToken: newToken,
-      verifyTokenExpires: tokenExpiry
-    }
+      verifyTokenExpires: tokenExpiry,
+    },
   });
 
   await emailService.sendVerificationEmail(email, newToken);
 
-  return { message: 'New verification email sent. Check your inbox.' };
+  return { message: "New verification email sent. Check your inbox." };
 };
 
 // ==================== ✅ UPDATE AVATAR ====================
 const updateAvatar = async (userId, avatarFile) => {
   if (!avatarFile) {
-    throw new Error('No image provided');
+    throw new Error("No image provided");
   }
 
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) {
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
   // ✅ Delete old avatar from Cloudinary (if exists and not a Google URL)
-  if (user.avatar && user.avatar.includes('cloudinary.com')) {
+  if (user.avatar && user.avatar.includes("cloudinary.com")) {
     try {
       // Extract public_id from URL
-      const parts = user.avatar.split('/');
+      const parts = user.avatar.split("/");
       const filename = parts[parts.length - 1];
-      const publicId = `genetix/avatars/${filename.split('.')[0]}`;
+      const publicId = `genetix/avatars/${filename.split(".")[0]}`;
       await cloudinary.uploader.destroy(publicId);
       console.log(`[Auth] Old avatar deleted: ${publicId}`);
     } catch (err) {
@@ -344,7 +350,10 @@ const updateAvatar = async (userId, avatarFile) => {
   }
 
   // ✅ Upload new avatar
-  const uploadResult = await uploadAvatarToCloudinary(avatarFile.buffer, userId);
+  const uploadResult = await uploadAvatarToCloudinary(
+    avatarFile.buffer,
+    userId,
+  );
 
   // ✅ Update DB
   const updated = await db.user.update({
@@ -353,7 +362,7 @@ const updateAvatar = async (userId, avatarFile) => {
   });
 
   return {
-    message: 'Avatar updated successfully',
+    message: "Avatar updated successfully",
     avatar: updated.avatar,
   };
 };
@@ -367,5 +376,5 @@ module.exports = {
   getMe,
   deleteAccount,
   resendVerification,
-  updateAvatar, 
+  updateAvatar,
 };

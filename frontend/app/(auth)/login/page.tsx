@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Mail, Loader2, CheckCircle } from 'lucide-react';
 
 // Google SVG Icon Component
 const GoogleIcon = () => (
@@ -24,6 +24,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // ✅ Resend verification state
+  const [isResending, setIsResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState('');
+  const [showResend, setShowResend] = useState(false);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -46,6 +51,8 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setResendSuccess('');
+    setShowResend(false);
     setIsLoading(true);
 
     try {
@@ -56,9 +63,12 @@ export default function LoginPage() {
         callbackUrl: '/dashboard',
       });
 
-
       if (result?.error) {
         setError(result.error || 'Invalid credentials');
+        // ✅ Agar email verify nahi hui to resend option dikhao
+        if (result.error.toLowerCase().includes('verif')) {
+          setShowResend(true);
+        }
       } else {
         router.push('/dashboard');
         router.refresh();
@@ -67,6 +77,28 @@ export default function LoginPage() {
       setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ✅ Resend verification handler
+  const handleResendVerification = async () => {
+    if (!email) return;
+    setIsResending(true);
+    setResendSuccess('');
+    setError('');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      setResendSuccess(data.message || 'Verification email sent! Check your inbox.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend verification email.');
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -80,7 +112,7 @@ export default function LoginPage() {
         <h1 className="text-3xl font-bold text-center gradient-text mb-8">
           Welcome Back
         </h1>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Email Input */}
           <div>
@@ -121,14 +153,46 @@ export default function LoginPage() {
             </div>
           </div>
 
-
           {/* Error Message */}
           {error && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-red-400 text-sm text-center">{error}</p>
             </div>
           )}
-          
+
+          {/* ✅ Resend Verification Button */}
+          {showResend && (
+            <div className="p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg space-y-3">
+              <p className="text-xs text-gray-400 text-center">
+                Didn&apos;t receive the verification email?
+              </p>
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={isResending}
+                className="w-full py-2.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-cyan-300 text-sm font-semibold hover:bg-cyan-500/30 transition flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+              >
+                {isResending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    Resend Verification Email
+                  </>
+                )}
+              </button>
+              {resendSuccess && (
+                <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                  <p className="text-green-400 text-xs">{resendSuccess}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Login Button */}
           <button
             type="submit"
