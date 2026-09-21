@@ -101,9 +101,9 @@ export default function Navbar() {
     <>
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
-            ? "bg-[#0a0a0f]/95 backdrop-blur-xl shadow-lg shadow-purple-500/5"
-            : "bg-transparent"
+          isScrolled || isMobileMenuOpen
+            ? "bg-[#0a0a0f]/95 backdrop-blur-xl shadow-lg shadow-purple-500/5 border-b border-white/10"
+            : "bg-transparent border-b border-transparent"
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -193,21 +193,31 @@ export default function Navbar() {
           {/* Mobile Menu */}
           <div
             className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-              isMobileMenuOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+              isMobileMenuOpen ? "max-h-[85vh] opacity-100 pb-4" : "max-h-0 opacity-0 pb-0"
             }`}
           >
-            <div className="py-4 space-y-1 border-t border-white/10">
+            <div className="mt-1 py-3 px-2 space-y-1 rounded-2xl bg-[#0f0f18] border border-white/10 shadow-2xl shadow-black/80 max-h-[75vh] overflow-y-auto">
+              {session && (
+                <div className="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl bg-white/5 border border-white/5">
+                  {getUserAvatar()}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold text-white truncate">{getUserName()}</span>
+                    <span className="text-xs text-gray-400 truncate">{session.user.email}</span>
+                  </div>
+                </div>
+              )}
               {navLinks.map(({ href, label, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                     pathname === href
-                      ? "bg-white/10 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                      ? "bg-gradient-to-r from-cyan-500/20 to-purple-600/20 text-white border border-cyan-400/30"
+                      : "text-gray-300 hover:text-white hover:bg-white/5"
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-5 h-5 text-cyan-400" />
                   {label}
                 </Link>
               ))}
@@ -218,27 +228,29 @@ export default function Navbar() {
                     setIsMobileMenuOpen(false);
                     setIsLogoutModalOpen(true);
                   }}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200"
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200"
                 >
                   <LogOut className="w-5 h-5" />
                   Logout
                 </button>
               ) : (
-                <>
+                <div className="pt-2 mt-2 border-t border-white/10 space-y-2">
                   <Link
                     href="/login"
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all duration-200"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200"
                   >
                     <User className="w-5 h-5" />
                     Log In
                   </Link>
                   <Link
                     href="/register"
-                    className="flex items-center justify-center px-4 py-3 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-cyan-500 to-purple-600 transition-all duration-200"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center justify-center px-4 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-cyan-500 to-purple-600 shadow-lg shadow-purple-500/20 transition-all duration-200"
                   >
                     Get Started
                   </Link>
-                </>
+                </div>
               )}
             </div>
           </div>

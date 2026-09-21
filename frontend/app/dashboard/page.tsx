@@ -8,10 +8,66 @@ import { useSession } from "next-auth/react";
 type GeneratedFile = { path: string; content: string };
 type Project = { id: string; name: string; prompt: string; status: string };
 type Analytics = { totals: { projects: number; files: number; versions: number; aiRequests: number; previews: number }; days: { label: string; projects: number; edits: number }[] };
-const templates = [
-  { name: "Studio portfolio", prompt: "A polished creative studio portfolio with a dark editorial layout, case studies, testimonials and a contact form." },
-  { name: "SaaS launch", prompt: "A conversion-focused SaaS landing page with pricing, feature comparison, customer logos, FAQ and a clear call to action." },
-  { name: "Local cafe", prompt: "A warm modern cafe website with menu sections, opening hours, location map, photo gallery and online reservation call to action." },
+import { Sparkles, ArrowUpRight, Flame } from "lucide-react";
+
+type TemplateItem = {
+  name: string;
+  category: string;
+  emoji: string;
+  gradient: string;
+  tags: string[];
+  prompt: string;
+};
+
+const templates: TemplateItem[] = [
+  {
+    name: "Aria Photography Studio",
+    category: "Portfolio",
+    emoji: "📸",
+    gradient: "from-purple-500/30 to-pink-500/30",
+    tags: ["Dark Mode", "Gallery", "Booking"],
+    prompt: "A modern dark-mode photography portfolio with hero showcase, interactive photo gallery grid with category filters (Portraits, Weddings, Commercial), client testimonials, about the photographer story, and an inquiry booking form.",
+  },
+  {
+    name: "CloudScale AI Launch",
+    category: "SaaS",
+    emoji: "🚀",
+    gradient: "from-cyan-500/30 to-blue-600/30",
+    tags: ["Pricing", "Features", "Testimonials"],
+    prompt: "A high-conversion SaaS product landing page with glowing hero badge, live feature showcase, interactive pricing tiers (Monthly/Annual toggle), customer reviews carousel, tech stack integrations grid, and FAQ accordion.",
+  },
+  {
+    name: "Artisan Brew Café & Bakery",
+    category: "Food",
+    emoji: "☕",
+    gradient: "from-amber-500/30 to-orange-600/30",
+    tags: ["Menu", "Reservation", "Map"],
+    prompt: "An elegant café and artisan bakery website with dynamic breakfast/lunch menu cards, daily specials, table reservation booking form, Google maps directions section, customer reviews, and Instagram feed gallery.",
+  },
+  {
+    name: "Apex Fashion Storefront",
+    category: "E-Commerce",
+    emoji: "🛍️",
+    gradient: "from-emerald-500/30 to-teal-600/30",
+    tags: ["Products", "Cart Drawer", "Filters"],
+    prompt: "A minimal modern streetwear and fashion e-commerce storefront with trending hero carousel, product catalog with price tags and badge filters, product detail drawer, shopping bag modal, and newsletter discount signup.",
+  },
+  {
+    name: "Nexus Creative Agency",
+    category: "Agency",
+    emoji: "💼",
+    gradient: "from-indigo-500/30 to-purple-600/30",
+    tags: ["Case Studies", "Team", "Contact"],
+    prompt: "A bold digital design agency website featuring full-bleed case studies, creative team grid, video reel showcase, client logos slider, statistics counter, and multi-step project discovery contact form.",
+  },
+  {
+    name: "FitPulse Gym & Coaching",
+    category: "Fitness",
+    emoji: "⚡",
+    gradient: "from-red-500/30 to-rose-600/30",
+    tags: ["Classes", "Trainers", "Free Trial"],
+    prompt: "An energetic gym and fitness coaching website with class schedules table, personal trainers bio cards, membership pricing calculator, transformation success stories, and free 7-day trial signup.",
+  },
 ];
 
 const slug = (name: string) => name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";
@@ -35,6 +91,7 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [showReactivatedModal, setShowReactivatedModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const hasLoadedTemplate = useRef(false);
 
   useEffect(() => {
@@ -208,8 +265,81 @@ const steps = [
           <div className="mt-6 flex h-44 items-end gap-2 sm:gap-4">{analytics.days.map((day) => { const height = Math.max(day.projects * 22 + day.edits * 8, 8); return <div key={day.label} className="flex flex-1 flex-col items-center gap-2"><div className="flex h-36 w-full items-end justify-center rounded-t-lg bg-white/[0.03]"><div title={`${day.projects} projects, ${day.edits} edits`} className="w-3/5 rounded-t-md bg-gradient-to-t from-purple-600 to-cyan-400 transition-all" style={{ height: `${Math.min(height, 100)}%` }} /></div><span className="text-xs text-gray-500">{day.label}</span></div>; })}</div>
         </section>}
         <section className="mb-8">
-          <div className="mb-4 flex items-end justify-between"><div><h2 className="text-xl font-semibold">Start from a template</h2><p className="mt-1 text-sm text-gray-400">Use a proven brief and customize it with AI.</p></div></div>
-          <div className="grid gap-3 md:grid-cols-3">{templates.map((template) => <button key={template.name} onClick={() => { setProjectName(template.name); setPrompt(template.prompt); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="glass rounded-2xl p-5 text-left transition hover:-translate-y-1 hover:border-cyan-400/50"><div className="mb-4 h-20 rounded-xl bg-gradient-to-br from-cyan-400/20 to-purple-600/30" /><h3 className="font-semibold text-cyan-200">{template.name}</h3><p className="mt-2 line-clamp-2 text-sm text-gray-400">{template.prompt}</p></button>)}</div>
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Flame className="w-5 h-5 text-amber-400" />
+                <h2 className="text-xl font-bold text-white">Popular Website Templates</h2>
+              </div>
+              <p className="text-sm text-gray-400">Pick a high-converting starter blueprint and customize it with AI.</p>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap gap-1.5 p-1 rounded-xl bg-white/5 border border-white/10 text-xs">
+              {["All", "Portfolio", "SaaS", "E-Commerce", "Food", "Agency", "Fitness"].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1 rounded-lg font-medium transition cursor-pointer ${
+                    selectedCategory === cat
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-sm"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {templates
+              .filter((t) => selectedCategory === "All" || t.category === selectedCategory)
+              .map((template) => (
+                <div
+                  key={template.name}
+                  className="glass rounded-2xl p-5 text-left transition hover:-translate-y-1 hover:border-cyan-400/50 flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className={`mb-4 flex h-24 items-center justify-between px-4 rounded-xl bg-gradient-to-br ${template.gradient} border border-white/10`}>
+                      <span className="text-4xl filter drop-shadow-md">{template.emoji}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-black/40 text-gray-200 border border-white/10">
+                        {template.category}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-white group-hover:text-cyan-300 transition flex items-center justify-between text-base">
+                      <span>{template.name}</span>
+                      <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all text-cyan-400" />
+                    </h3>
+
+                    <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-gray-300">
+                      {template.prompt}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {template.tags.map((tag) => (
+                        <span key={tag} className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-gray-400">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setProjectName(template.name);
+                      setPrompt(template.prompt);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="mt-4 w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white/5 hover:bg-cyan-500/20 text-gray-300 hover:text-cyan-200 border border-white/10 hover:border-cyan-400/30 text-xs font-medium transition cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Use this blueprint</span>
+                  </button>
+                </div>
+              ))}
+          </div>
         </section>
         <h2 className="mb-4 text-xl font-semibold">Your Projects</h2>
         <div className="grid gap-4 md:grid-cols-2">{projects.map((project) => <Link key={project.id} href={`/project/${slug(project.name)}`} className="glass rounded-2xl p-5 hover:border-cyan-400/50"><h3 className="font-semibold text-cyan-300">{project.name}</h3><p className="mt-2 line-clamp-2 text-sm text-gray-400">{project.prompt}</p></Link>)}</div>

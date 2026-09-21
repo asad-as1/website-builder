@@ -383,7 +383,7 @@ const enableSharing = async (userId, projectId) => {
 };
 
 const getSharedProject = async (shareToken) => {
-  const project = await db.project.findFirst({ where: { shareToken, shareEnabled: true }, select: { name: true, prompt: true, files: true, thumbnail: true, updatedAt: true } });
+  const project = await db.project.findFirst({ where: { shareToken, shareEnabled: true }, select: { id: true, name: true, prompt: true, files: true, thumbnail: true, framework: true, updatedAt: true } });
   if (!project) throw new Error('Shared project not found');
   return project;
 };
@@ -498,6 +498,43 @@ ${selected.map((file) => `\n[FILE: ${file.path}]\n${file.content}\n[END_FILE]`).
   throw new Error('All AI providers failed to edit the project');
 };
 
+const chatWithCopilot = async (userId, projectId, userMessage, activePath) => {
+  const project = await db.project.findFirst({ where: { id: projectId, userId } });
+  if (!project) throw new Error('Project not found');
+  if (!userMessage || !userMessage.trim()) throw new Error('Message cannot be empty');
+
+  const files = Array.isArray(project.files) ? project.files : [];
+  const activeFile = files.find((f) => f.path === activePath) || files[0];
+
+  const systemPrompt = `You are Genetix AI Copilot, an expert, friendly senior web development assistant.
+You are helping the user build and refine their website project: "${project.name}" (Original Brief: "${project.prompt}").
+Currently open file in editor: ${activeFile ? activeFile.path : 'none'}.
+
+Project Files:
+${files.map((f) => f.path).join(', ')}
+
+Guidelines:
+1. Answer the user conversationally, concisely, and helpfully.
+2. If they greet you or ask what you can do, explain warmly how you can help them build, customize, or improve their website.
+3. If they ask for advice, improvements, or code suggestions, give clear, actionable explanations and code snippets.
+4. Keep your responses concise (under 150 words when possible) so it reads great in a chat bubble.`;
+
+  const chatPrompt = `${systemPrompt}\n\nUser: ${userMessage}\n\nCopilot:`;
+
+  for (const provider of providers) {
+    try {
+      const response = await provider.generate(provider.client, chatPrompt);
+      if (typeof response === 'string' && response.trim()) {
+        return response.trim();
+      }
+    } catch (err) {
+      console.warn(`[Copilot Chat] Provider ${provider.name} failed:`, err.message);
+    }
+  }
+
+  return "I'm ready to help you customize your website! Ask me to add sections, change styles, or explain any file.";
+};
+
 module.exports = {
   generateWebsite,
   saveProject,
@@ -511,5 +548,6 @@ module.exports = {
   duplicateProject,
   getAnalytics,
   enableSharing,
-  getSharedProject
+  getSharedProject,
+  chatWithCopilot,
 };

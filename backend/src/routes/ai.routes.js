@@ -1,4 +1,4 @@
-﻿const router = require('express').Router();
+const router = require('express').Router();
 const aiService = require('../services/ai.service');
 const { authenticate } = require('../modules/auth/auth.middleware');
 const db = require('../shared/mongodb.client');
@@ -205,6 +205,22 @@ router.post('/projects/:projectId/edit', authenticate, async (req, res) => {
       selectedPaths
     );
     res.json({ project });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Copilot conversational chat
+router.post('/projects/:projectId/copilot/chat', authenticate, async (req, res) => {
+  try {
+    const { message, activePath } = req.body;
+    const reply = await aiService.chatWithCopilot(
+      req.userId,
+      req.params.projectId,
+      message,
+      activePath
+    );
+    res.json({ reply });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
