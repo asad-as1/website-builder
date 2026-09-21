@@ -2,6 +2,11 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const db = require("../shared/mongodb.client");
 
+const checkIsAdmin = (role) => {
+  const adminRole = process.env.ADMIN_ROLE || 'adminasad90';
+  return role === adminRole;
+};
+
 let io = null;
 const onlineUsers = new Map();
 
@@ -59,7 +64,7 @@ const initializeSocket = (httpServer) => {
 
         const isOwner =
           contact.userId?.toString() === socket.userId?.toString();
-        const isAdmin = socket.userRole === process.env.ADMIN_ROLE;
+        const isAdmin = checkIsAdmin(socket.userRole);
 
         if (!isOwner && !isAdmin) {
           socket.emit("error", { message: "Access denied" });
@@ -132,10 +137,15 @@ const initializeSocket = (httpServer) => {
 
           const isOwner =
             contact.userId?.toString() === socket.userId?.toString();
-          const isAdmin = socket.userRole === process.env.ADMIN_ROLE;
+          const isAdmin = checkIsAdmin(socket.userRole);
 
           if (!isOwner && !isAdmin) {
             socket.emit("error", { message: "Access denied" });
+            return;
+          }
+
+          if (contact.isUserDeleted) {
+            socket.emit("error", { message: "User account deleted. Chat is closed." });
             return;
           }
 
@@ -227,7 +237,7 @@ const initializeSocket = (httpServer) => {
         });
         if (!contact) return;
 
-        const isAdmin = socket.userRole === process.env.ADMIN_ROLE;
+        const isAdmin = checkIsAdmin(socket.userRole);
         const updateData = isAdmin ? { unreadByAdmin: 0 } : { unreadByUser: 0 };
 
         const messages = (contact.messages || []).map((msg) => {

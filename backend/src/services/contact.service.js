@@ -4,8 +4,9 @@ const emailService = require('../services/email.service');
 // ✅ Helper: Get admin info (avatar + name)
 const getAdminInfo = async () => {
   try {
+    const adminRole = process.env.ADMIN_ROLE || 'adminasad90';
     const admin = await db.user.findFirst({
-      where: { role: process.env.ADMIN_ROLE || 'adminasad90' },
+      where: { role: adminRole },
       select: { name: true, avatar: true },
     });
     return admin || { name: 'Admin', avatar: null };
@@ -123,7 +124,7 @@ const getAllContacts = async () => {
     orderBy: { createdAt: -1 },
   });
 
-  // ✅ Fetch user avatars for each contact
+  // ✅ Fetch user avatars for each contact (from user or deletedUser archive)
   const contactsWithAvatars = await Promise.all(
     contacts.map(async (contact) => {
       let profilePic = null;
@@ -132,7 +133,15 @@ const getAllContacts = async () => {
           where: { id: contact.userId },
           select: { avatar: true },
         });
-        profilePic = user?.avatar || null;
+        if (user?.avatar) {
+          profilePic = user.avatar;
+        } else if (contact.isUserDeleted) {
+          const archived = await db.deletedUser.findFirst({
+            where: { originalUserId: contact.userId },
+            select: { avatar: true },
+          });
+          profilePic = archived?.avatar || null;
+        }
       } catch {
         profilePic = null;
       }

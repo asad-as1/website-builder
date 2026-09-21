@@ -3,4 +3,5 @@ module.exports = {
   Project: require('./Project'),
   ProjectVersion: require('./ProjectVersion'),
   Contact: require('./Contact'),
+  DeletedUser: require('./DeletedUser'),
 };

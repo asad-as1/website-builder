@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import StackBlitzSDK from "@stackblitz/sdk";
 import ConfirmationModal from "@/components/shared/ConfirmationModal";
+import { Copy, Check, ExternalLink } from "lucide-react";
 
 type ProjectFile = { path: string; content: string };
 type ProjectVersion = { id: string; message?: string | null; createdAt: string; files: ProjectFile[] };
@@ -36,6 +37,7 @@ export default function EditorPage() {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
   const [isDirty, setIsDirty] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
+  const [isCopied, setIsCopied] = useState(false);
   const [aiCommands, setAiCommands] = useState<string[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [stackBlitzPreview, setStackBlitzPreview] = useState(false);
@@ -87,7 +89,7 @@ export default function EditorPage() {
       .then((response) => response.json())
       .then((data) => {
         if (data.user) {
-          const limit = data.user.role === "adminasad90" ? 30 : 10;
+          const limit = data.user.role === "admin" ? 30 : 10;
           setPreviewRemaining(Math.max(limit - (data.user.previewUsage || 0), 0));
         }
       })
@@ -209,6 +211,18 @@ export default function EditorPage() {
     }
   };
 
+  const handleCopyLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setIsCopied(true);
+      setMessage("Share link copied to clipboard!");
+      setTimeout(() => setIsCopied(false), 2500);
+    } catch {
+      setMessage("Could not auto-copy. Please copy link manually.");
+    }
+  };
+
   const shareProject = async () => {
     if (!project || !apiUrl || !session?.user.accessToken) return;
     const response = await fetch(`${apiUrl}/ai/projects/${project.id}/share`, { method: "POST", headers: { Authorization: `Bearer ${session.user.accessToken}` } });
@@ -216,8 +230,14 @@ export default function EditorPage() {
     if (!response.ok) { setError(data.error || "Sharing failed"); return; }
     const url = `${window.location.origin}/share/${data.shareToken}`;
     setShareUrl(url);
-    await navigator.clipboard?.writeText(url);
-    setMessage("Share link copied to clipboard.");
+    try {
+      await navigator.clipboard?.writeText(url);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2500);
+      setMessage("Share link generated and copied to clipboard!");
+    } catch {
+      setMessage("Share link generated!");
+    }
   };
 
   const undoLastAiEdit = () => {
@@ -329,7 +349,51 @@ export default function EditorPage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="flex gap-1 rounded-lg bg-white/5 p-1">{(["mobile", "tablet", "desktop"] as PreviewMode[]).map((mode) => <button key={mode} onClick={() => setPreviewMode(mode)} className={`rounded-md px-3 py-1 text-xs capitalize ${previewMode === mode ? "bg-cyan-500/30 text-cyan-200" : "text-gray-400"}`}>{mode}</button>)}</div><span className="text-xs text-gray-500">Responsive preview</span></div>
           <div className="flex justify-center overflow-auto"><iframe title="Live preview" src={previewUrl} className="h-[70vh] rounded-xl border border-white/10 bg-white transition-all" style={{ width: previewMode === "mobile" ? 390 : previewMode === "tablet" ? 768 : "100%" }} /></div>
         </section>}
-        {shareUrl && <div className="mb-4 rounded-lg border border-purple-400/20 bg-purple-500/10 p-3 text-sm text-purple-200">Public preview link: <a className="underline" href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a></div>}
+        {shareUrl && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-purple-400/30 bg-purple-500/10 p-3.5 text-sm text-purple-200">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="font-semibold shrink-0 text-purple-300">Public share link:</span>
+              <a
+                href={shareUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate underline text-purple-200 hover:text-white transition flex items-center gap-1.5"
+                title={shareUrl}
+              >
+                <span className="truncate">{shareUrl}</span>
+                <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-70" />
+              </a>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/40 text-purple-100 font-medium transition cursor-pointer text-xs"
+                title="Copy link to clipboard"
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-300 font-semibold">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy link</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={shareUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition text-xs font-medium cursor-pointer"
+              >
+                Open
+              </a>
+            </div>
+          </div>
+        )}
         <div className="grid min-h-[70vh] gap-0 lg:grid-cols-[var(--left-width)_12px_minmax(0,1fr)_12px_var(--right-width)]" style={{ "--left-width": `${leftWidth}px`, "--right-width": `${rightWidth}px` } as CSSProperties}>
           <aside className="glass min-w-0 rounded-xl p-3">
             <h2 className="mb-3 text-sm font-semibold text-gray-400">Files</h2>

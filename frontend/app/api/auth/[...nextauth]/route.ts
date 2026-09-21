@@ -81,6 +81,7 @@ const handler = NextAuth({
         user.image = data.user.avatar || null;
         user.name = data.user.name || user.name;
         user.provider = "google";
+        user.wasReactivated = Boolean(data.wasReactivated);
 
         return true;
       } catch (error) {
@@ -95,6 +96,7 @@ const handler = NextAuth({
         token.image = user.image || null;
         token.name = user.name;
         token.provider = user.provider;
+        token.wasReactivated = user.wasReactivated;
       }
 
       // ✅ Handle session update trigger (avatar update)
@@ -132,6 +134,7 @@ const handler = NextAuth({
         session.user.image = token.image as string || null;
         session.user.name = token.name as string;
         session.user.provider = token.provider as string;
+        session.user.wasReactivated = token.wasReactivated as boolean;
       }
       return session;
     }

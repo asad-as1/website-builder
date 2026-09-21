@@ -3,6 +3,14 @@ const db = require("../shared/mongodb.client");
 const jwtService = require("../services/jwt.service");
 const emailService = require("../services/email.service");
 const cloudinary = require("../shared/cloudinary.client");
+const { ensureUserUsageReset } = require("../modules/ai/rateLimiter");
+
+const checkIsAdmin = (role) => {
+  const adminRole = process.env.ADMIN_ROLE || 'adminasad90';
+  return role === adminRole;
+};
+
+const formatRoleForClient = (role) => (checkIsAdmin(role) ? 'admin' : 'user');
 
 const uploadAvatarToCloudinary = async (fileBuffer, userId = null) => {
   return new Promise((resolve, reject) => {
@@ -118,49 +126,31 @@ const verifyEmail = async (token) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      role: user.role,
+      role: formatRoleForClient(user.role),
     },
   };
 };
 
 // ==================== LOGIN ====================
 const login = async ({ email, password }) => {
+  if (!email || !password) {
+    throw new Error("Email and password are required");
+  }
+
   const user = await db.user.findUnique({
     where: { email },
   });
 
   if (!user) {
-    throw new Error("User Not Found. Please register first.");
+    throw new Error("Invalid credentials");
   }
-
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      throw new Error("Invalid credentials");
-    }
 
   if (!user.isActive) {
     throw new Error("Account deactivated. Contact support.");
   }
 
-  if (password === "VERIFIED_BY_TOKEN") {
-    if (!user.emailVerified) {
-      throw new Error("Please verify your email first");
-    }
-    const token = jwtService.generateToken(user.id);
-    return {
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        role: user.role,
-      },
-    };
-  }
-
   if (!user.password) {
-    throw new Error("Please login with Google");
+    throw new Error("This account was created with Google. Please sign in with Google.");
   }
 
   if (!user.emailVerified) {
@@ -181,7 +171,7 @@ const login = async ({ email, password }) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      role: user.role,
+      role: formatRoleForClient(user.role),
     },
   };
 };
@@ -191,6 +181,11 @@ const googleAuth = async ({ email, name, picture, googleId }) => {
   if (!email || !googleId) {
     throw new Error("Email and googleId are required");
   }
+
+  // Check if this email was previously deleted (for clean slate welcome notification)
+  const wasPreviouslyDeleted = await db.deletedUser.findFirst({
+    where: { originalEmail: email },
+  });
 
   let user = await db.user.findUnique({
     where: { googleId },
@@ -233,13 +228,22 @@ const googleAuth = async ({ email, name, picture, googleId }) => {
       email: user.email,
       name: user.name,
       avatar: user.avatar,
-      role: user.role,
+      role: formatRoleForClient(user.role),
+      wasReactivated: Boolean(wasPreviouslyDeleted),
     },
+    wasReactivated: Boolean(wasPreviouslyDeleted),
   };
 };
 
 // ==================== GET CURRENT USER ====================
 const getMe = async (userId) => {
+  // Automatically sync and reset daily API & preview limits if 24 hours have elapsed
+  try {
+    await ensureUserUsageReset(userId);
+  } catch (err) {
+    console.error("Error ensuring usage reset:", err);
+  }
+
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -264,6 +268,8 @@ const getMe = async (userId) => {
     throw new Error("Account deactivated. Contact support.");
   }
 
+  user.role = formatRoleForClient(user.role);
+
   return { user };
 };
 
@@ -277,20 +283,45 @@ const deleteAccount = async (userId) => {
     throw new Error("User not found");
   }
 
-  if (!user.isActive) {
-    throw new Error("Account already deactivated");
-  }
+  // 1. Count projects
+  const projectCount = await db.project.count({ where: { userId } });
 
-  await db.user.update({
-    where: { id: userId },
+  // 2. Archive snapshot into DeletedUser with email suffix: user@example.com_deleted
+  await db.deletedUser.create({
     data: {
-      isActive: false,
+      originalUserId: user.id,
+      name: user.name || "User",
+      email: `${user.email}_deleted`,
+      originalEmail: user.email,
+      avatar: user.avatar || null,
+      projectCount,
+      apiUsage: user.apiUsage || 0,
+      joinedAt: user.createdAt,
       deletedAt: new Date(),
     },
   });
 
+  // 3. Mark all user's Contact chats as isUserDeleted: true (retain chats for Admin)
+  const contacts = await db.contact.findMany({ where: { userId } });
+  for (const c of contacts) {
+    await db.contact.update({
+      where: { id: c.id },
+      data: { isUserDeleted: true },
+    });
+  }
+
+  // 4. Delete user's projects & project versions (clean wipe)
+  const userProjects = await db.project.findMany({ where: { userId } });
+  for (const p of userProjects) {
+    await db.projectVersion.deleteMany({ where: { projectId: p.id } });
+  }
+  await db.project.deleteMany({ where: { userId } });
+
+  // 5. Hard delete user from User collection
+  await db.user.delete({ where: { id: userId } });
+
   return {
-    message: "Account deactivated successfully. Your data is retained.",
+    message: "Account and all associated projects deleted permanently.",
   };
 };
 

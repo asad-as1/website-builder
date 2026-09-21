@@ -34,7 +34,22 @@ export default function DashboardPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [showReactivatedModal, setShowReactivatedModal] = useState(false);
   const hasLoadedTemplate = useRef(false);
+
+  useEffect(() => {
+    if (session?.user?.wasReactivated) {
+      const seen = sessionStorage.getItem("seen_reactivated_notice");
+      if (!seen) {
+        setShowReactivatedModal(true);
+      }
+    }
+  }, [session?.user?.wasReactivated]);
+
+  const dismissReactivatedModal = () => {
+    sessionStorage.setItem("seen_reactivated_notice", "true");
+    setShowReactivatedModal(false);
+  };
 
   useEffect(() => {
     if (hasLoadedTemplate.current) return;
@@ -71,7 +86,7 @@ export default function DashboardPage() {
     ]).then(([projectData, meData, analyticsData]) => {
       setProjects(projectData.projects || []);
       setUsage({ used: meData.user?.apiUsage || 0, limit: 20 });
-      const previewLimit = meData.user?.role === "adminasad90" ? 30 : 10;
+      const previewLimit = meData.user?.role === "admin" ? 30 : 10;
       setPreviewUsage({ used: meData.user?.previewUsage || 0, limit: previewLimit });
       setAnalytics(analyticsData.analytics || null);
     }).catch(() => setError("Dashboard data could not be loaded."));
@@ -197,8 +212,36 @@ const steps = [
           <div className="grid gap-3 md:grid-cols-3">{templates.map((template) => <button key={template.name} onClick={() => { setProjectName(template.name); setPrompt(template.prompt); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="glass rounded-2xl p-5 text-left transition hover:-translate-y-1 hover:border-cyan-400/50"><div className="mb-4 h-20 rounded-xl bg-gradient-to-br from-cyan-400/20 to-purple-600/30" /><h3 className="font-semibold text-cyan-200">{template.name}</h3><p className="mt-2 line-clamp-2 text-sm text-gray-400">{template.prompt}</p></button>)}</div>
         </section>
         <h2 className="mb-4 text-xl font-semibold">Your Projects</h2>
-        <div className="grid gap-4 md:grid-cols-2">{projects.map((project) => <Link key={project.id} href={`/project/${slug(project.name)}`} className="glass rounded-2xl p-5 hover:border-cyan-400/50"><h3 className="font-semibold text-cyan-300">{project.name}</h3><p className="mt-2 line-clamp-2 text-sm text-gray-400">{project.prompt}</p><p className="mt-4 text-xs text-gray-500">{project.status}</p></Link>)}</div>
+        <div className="grid gap-4 md:grid-cols-2">{projects.map((project) => <Link key={project.id} href={`/project/${slug(project.name)}`} className="glass rounded-2xl p-5 hover:border-cyan-400/50"><h3 className="font-semibold text-cyan-300">{project.name}</h3><p className="mt-2 line-clamp-2 text-sm text-gray-400">{project.prompt}</p></Link>)}</div>
       </div>
+
+      {showReactivatedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+          <div className="w-full max-w-lg rounded-3xl border border-cyan-400/30 bg-[#12121f] p-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-cyan-500/20 blur-2xl" />
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">🎉</span>
+              <h2 className="text-2xl font-bold text-white">Welcome Back!</h2>
+            </div>
+            <p className="text-sm text-gray-300 leading-relaxed">
+              Your account (<span className="text-cyan-300 font-semibold">{session?.user?.email}</span>) has been created with a <span className="text-white font-semibold">fresh, clean slate</span>.
+            </p>
+            <div className="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-xs text-gray-400 space-y-2">
+              <p className="flex items-center gap-2"><span className="text-emerald-400 font-bold">✓</span> All previous projects and files were permanently wiped.</p>
+              <p className="flex items-center gap-2"><span className="text-emerald-400 font-bold">✓</span> Your usage limits and preview counters have been reset.</p>
+              <p className="flex items-center gap-2"><span className="text-emerald-400 font-bold">✓</span> You are starting completely fresh!</p>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={dismissReactivatedModal}
+                className="rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg hover:opacity-90 transition cursor-pointer"
+              >
+                Get started
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

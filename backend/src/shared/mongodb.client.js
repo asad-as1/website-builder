@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { User, Project, ProjectVersion, Contact } = require('../models');
+const { User, Project, ProjectVersion, Contact, DeletedUser } = require('../models');
 
 const connectMongoDB = async () => {
   if (mongoose.connection.readyState === 1) return;
@@ -7,7 +7,7 @@ const connectMongoDB = async () => {
   console.log('Connected to MongoDB');
 };
 
-const modelMap = { user: User, project: Project, projectVersion: ProjectVersion, contact: Contact };
+const modelMap = { user: User, project: Project, projectVersion: ProjectVersion, contact: Contact, deletedUser: DeletedUser };
 
 const plain = (document) => document ? document.toObject({ flattenMaps: true }) : null;
 const matches = (document, where = {}) => Object.entries(where).every(([key, value]) => document[key] === value);
@@ -76,7 +76,7 @@ const createDelegate = (name) => {
       return projectDocument(await Model.findOneAndUpdate(
         { _id: id },
         updateOperators ? normalized : { $set: data },
-        { new: true, runValidators: true },
+        { returnDocument: 'after', runValidators: true },
       ), { select, include });
     },
     async delete({ where } = {}) {
@@ -95,6 +95,7 @@ const db = {
   project: createDelegate('project'),
   projectVersion: createDelegate('projectVersion'),
   contact: createDelegate('contact'),
+  deletedUser: createDelegate('deletedUser'),
   async $transaction(callback) {
     return callback(db);
   },

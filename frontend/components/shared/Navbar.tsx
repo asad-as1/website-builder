@@ -34,7 +34,7 @@ export default function Navbar() {
     setHasAvatarError(false);
   }, [session?.user?.image]);
 
-  const isAdmin = session?.user?.role !== "user";
+  const isAdmin = session?.user?.role === "admin";
 
   const navLinks = session
     ? [

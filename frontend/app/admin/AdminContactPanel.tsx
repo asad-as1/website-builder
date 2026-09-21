@@ -58,6 +58,8 @@ export default function AdminContactPanel({ onImageClick }: Props) {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isReplying, setIsReplying] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const REQUESTS_PER_PAGE = 8;
 
   // ✅ local image preview (agar parent modal na de)
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export default function AdminContactPanel({ onImageClick }: Props) {
         {(["all", "pending", "in-progress", "completed"] as const).map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => { setFilter(f); setCurrentPage(1); }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
               filter === f
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
@@ -222,12 +224,19 @@ export default function AdminContactPanel({ onImageClick }: Props) {
               </tr>
             </thead>
             <tbody>
-              {filteredContacts.map((contact, index) => {
-                const config = statusConfig[contact.status] || statusConfig.pending;
-                const avatar = getAvatar(contact.profilePic);
-                return (
-                  <tr key={contact.id} className="border-b border-white/5 hover:bg-white/5 transition">
-                    <td className="py-3 px-2 text-sm text-gray-500">{index + 1}</td>
+              {(() => {
+                const totalPages = Math.ceil(filteredContacts.length / REQUESTS_PER_PAGE) || 1;
+                const paginatedContacts = filteredContacts.slice(
+                  (currentPage - 1) * REQUESTS_PER_PAGE,
+                  currentPage * REQUESTS_PER_PAGE
+                );
+                return paginatedContacts.map((contact, index) => {
+                  const serialNumber = (currentPage - 1) * REQUESTS_PER_PAGE + index + 1;
+                  const config = statusConfig[contact.status] || statusConfig.pending;
+                  const avatar = getAvatar(contact.profilePic);
+                  return (
+                    <tr key={contact.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                      <td className="py-3 px-2 text-sm text-gray-500">{serialNumber}</td>
                     <td className="py-3 px-2">
                       <img
                         src={avatar}
@@ -284,9 +293,43 @@ export default function AdminContactPanel({ onImageClick }: Props) {
                     </td>
                   </tr>
                 );
-              })}
-            </tbody>
+              });
+            })()}
+          </tbody>
           </table>
+
+          {/* Pagination Controls */}
+          {(() => {
+            const totalPages = Math.ceil(filteredContacts.length / REQUESTS_PER_PAGE) || 1;
+            if (totalPages <= 1) return null;
+            return (
+              <div className="mt-4 flex items-center justify-between text-xs text-gray-400 px-2 pt-2 border-t border-white/10">
+                <span>
+                  Showing {(currentPage - 1) * REQUESTS_PER_PAGE + 1} -{" "}
+                  {Math.min(currentPage * REQUESTS_PER_PAGE, filteredContacts.length)} of {filteredContacts.length} requests
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-semibold text-white px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

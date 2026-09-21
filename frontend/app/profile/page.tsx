@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import axios from "axios";
-import { Camera, X, Loader2 } from "lucide-react";
+import { Camera, X, Loader2, AlertTriangle, Trash2 } from "lucide-react";
 
 type Project = { id: string; name: string; prompt: string; status: string; createdAt?: string };
 
@@ -12,6 +12,7 @@ export default function ProfilePage() {
   const { data: session, status, update } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [confirming, setConfirming] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
@@ -104,6 +105,7 @@ export default function ProfilePage() {
   };
 
   const deleteAccount = async () => {
+    setIsDeleting(true);
     try {
       const response = await fetch(`${apiUrl}/auth/delete-account`, { method: "DELETE", headers: { Authorization: `Bearer ${user.accessToken}` } });
       const data = await response.json();
@@ -112,6 +114,8 @@ export default function ProfilePage() {
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not delete account");
       setConfirming(false);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -196,9 +200,73 @@ export default function ProfilePage() {
         </section>
 
         {error && <p className="mt-6 text-sm text-red-400">{error}</p>}
-        {/* <button onClick={() => setConfirming(true)} className="mt-8 rounded-lg border border-red-500/40 px-4 py-2 text-sm text-red-300">Delete account</button> */}
+        
+        <div className="mt-12 pt-8 border-t border-white/10 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-red-400">Danger Zone</h3>
+            <p className="text-sm text-gray-400">Permanently delete your account and all associated projects.</p>
+          </div>
+          <button
+            onClick={() => setConfirming(true)}
+            className="rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 px-5 py-2.5 text-sm font-semibold text-red-400 hover:text-red-300 transition cursor-pointer"
+          >
+            Delete account
+          </button>
+        </div>
       </div>
-      {confirming && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-6"><div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#171722] p-6"><h2 className="text-xl font-semibold">Delete account?</h2><p className="mt-3 text-sm text-gray-400">Your account will be deactivated and you will be signed out.</p><div className="mt-6 flex justify-end gap-3"><button onClick={() => setConfirming(false)} className="rounded-lg bg-white/10 px-4 py-2">Cancel</button><button onClick={deleteAccount} className="rounded-lg bg-red-500 px-4 py-2 font-semibold">Delete account</button></div></div></div>}
+
+      {/* Delete Account Confirmation Modal */}
+      {confirming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => !isDeleting && setConfirming(false)}
+          />
+
+          {/* Modal */}
+          <div className="relative glass p-8 rounded-2xl w-full max-w-md mx-4 border border-white/10 shadow-2xl">
+            <div className="text-center">
+              {/* Icon */}
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-8 h-8 text-red-400" />
+              </div>
+
+              <h3 className="text-xl font-semibold text-white">Permanently delete account?</h3>
+              <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+                Are you sure you want to delete your account? <span className="text-white font-medium">All your projects, files, and workspace history will be permanently wiped.</span> This action cannot be undone.
+              </p>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setConfirming(false)}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 border border-white/10 rounded-lg text-gray-300 hover:bg-white/5 transition disabled:opacity-60 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={deleteAccount}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition font-semibold disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete account
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -1,5 +1,48 @@
 const db = require('../../shared/mongodb.client');
 
+const ensureUserUsageReset = async (userId) => {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      apiUsage: true,
+      usageResetAt: true,
+      previewUsage: true,
+      previewResetAt: true,
+    }
+  });
+
+  if (!user) return null;
+
+  const now = new Date();
+  const updates = {};
+  let shouldUpdate = false;
+
+  const usageReset = user.usageResetAt ? new Date(user.usageResetAt) : null;
+  if (!usageReset || now > usageReset) {
+    updates.apiUsage = 0;
+    updates.usageResetAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    shouldUpdate = true;
+  }
+
+  const previewReset = user.previewResetAt ? new Date(user.previewResetAt) : null;
+  if (!previewReset || now > previewReset) {
+    updates.previewUsage = 0;
+    updates.previewResetAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    shouldUpdate = true;
+  }
+
+  if (shouldUpdate) {
+    await db.user.update({
+      where: { id: userId },
+      data: updates,
+    });
+    return { ...user, ...updates };
+  }
+
+  return user;
+};
+
 const checkRateLimit = async (userId) => {
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -12,21 +55,22 @@ const checkRateLimit = async (userId) => {
 
   const limit = 20;
   const now = new Date();
-  const resetDate = user.usageResetAt || new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const resetDate = user.usageResetAt ? new Date(user.usageResetAt) : null;
 
-  // Reset usage if date passed
-  if (now > resetDate) {
+  // Reset usage if resetDate is missing or 24 hours have passed
+  if (!resetDate || now > resetDate) {
+    const nextReset = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     await db.user.update({
       where: { id: userId },
       data: {
         apiUsage: 0,
-        usageResetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000)
+        usageResetAt: nextReset
       }
     });
-    return { allowed: true, remaining: limit, resetAt: resetDate };
+    return { allowed: true, remaining: limit, resetAt: nextReset };
   }
 
-  const remaining = limit - user.apiUsage;
+  const remaining = Math.max(limit - (user.apiUsage || 0), 0);
 
   if (remaining <= 0) {
     return { 
@@ -53,16 +97,21 @@ const checkPreviewLimit = async (userId) => {
     select: { previewUsage: true, previewResetAt: true, role: true }
   });
   if (!user) throw new Error('User not found');
-  const limit = user.role === 'adminasad90' ? 30 : 10;
+  const checkIsAdmin = (role) => role === (process.env.ADMIN_ROLE || 'adminasad90');
+  const limit = checkIsAdmin(user.role) ? 30 : 10;
   const now = new Date();
-  if (now > user.previewResetAt) {
+  const resetDate = user.previewResetAt ? new Date(user.previewResetAt) : null;
+
+  // Reset preview usage if resetDate is missing or 24 hours have passed
+  if (!resetDate || now > resetDate) {
+    const nextReset = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     await db.user.update({
       where: { id: userId },
-      data: { previewUsage: 0, previewResetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000) }
+      data: { previewUsage: 0, previewResetAt: nextReset }
     });
     return { allowed: true, remaining: limit };
   }
-  const remaining = Math.max(limit - user.previewUsage, 0);
+  const remaining = Math.max(limit - (user.previewUsage || 0), 0);
   return {
     allowed: remaining > 0,
     remaining,
@@ -77,4 +126,10 @@ const incrementPreviewUsage = async (userId) => {
   });
 };
 
-module.exports = { checkRateLimit, incrementUsage, checkPreviewLimit, incrementPreviewUsage };
+module.exports = {
+  checkRateLimit,
+  incrementUsage,
+  checkPreviewLimit,
+  incrementPreviewUsage,
+  ensureUserUsageReset,
+};

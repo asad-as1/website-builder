@@ -47,6 +47,7 @@ const contactSchema = new mongoose.Schema({
   unreadByAdmin: { type: Number, default: 0 },
   unreadByUser: { type: Number, default: 0 },
   
+  isUserDeleted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });
 

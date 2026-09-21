@@ -10,6 +10,7 @@ declare module "next-auth" {
       provider?: string;
       accessToken?: string;
       role?: string;
+      wasReactivated?: boolean;
     };
   }
 
@@ -17,6 +18,7 @@ declare module "next-auth" {
     token?: string;
     role?: string;
     provider?: string;
+    wasReactivated?: boolean;
   }
 }
 
@@ -28,5 +30,6 @@ declare module "next-auth/jwt" {
     image?: string | null;
     name?: string | null;
     provider?: string;
+    wasReactivated?: boolean;
   }
 }

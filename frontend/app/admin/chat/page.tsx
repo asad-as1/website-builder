@@ -27,6 +27,7 @@ type Contact = {
   lastMessage: string;
   lastMessageAt: string;
   status: string;
+  isUserDeleted?: boolean;
   unreadByAdmin: number;
   createdAt: string;
 };
@@ -65,7 +66,7 @@ export default function AdminChatListPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
-    if (session?.user?.role !== process.env.NEXT_PUBLIC_ADMIN_ROLE) return;
+    if (session?.user?.role !== "admin") return;
   }, [status, router, session?.user?.role]);
 
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function AdminChatListPage() {
     return <Spinner fullScreen text="Loading chats..." />;
   }
 
-  if (session?.user?.role !== process.env.NEXT_PUBLIC_ADMIN_ROLE) {
+  if (session?.user?.role !== "admin") {
     return (
       <main className="min-h-screen bg-[#0a0a0f] flex items-center justify-center text-white">
         <h1 className="text-2xl font-bold">Access denied</h1>
@@ -365,6 +366,11 @@ export default function AdminChatListPage() {
                         <StatusIcon className="w-3 h-3" />
                         {config.label}
                       </span>
+                      {contact.isUserDeleted && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-red-500/10 text-red-400 border border-red-500/20 font-medium">
+                          Account Deleted
+                        </span>
+                      )}
                       {hasUnread && (
                         <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-cyan-500 text-xs font-bold">
                           {contact.unreadByAdmin}

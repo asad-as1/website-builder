@@ -45,6 +45,7 @@ type Contact = {
   budget: string;
   priority: string;
   status: string;
+  isUserDeleted?: boolean;
   messages: Message[];
 };
 
@@ -96,7 +97,7 @@ export default function AdminChatRoomPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
-    if (session?.user?.role !== process.env.NEXT_PUBLIC_ADMIN_ROLE) return;
+    if (session?.user?.role !== "admin") return;
   }, [status, router, session?.user?.role]);
 
   useEffect(() => {
@@ -378,7 +379,7 @@ export default function AdminChatRoomPage() {
     );
   }
 
-  if (session?.user?.role !== process.env.NEXT_PUBLIC_ADMIN_ROLE) {
+  if (session?.user?.role !== "admin") {
     return (
       <main className="min-h-screen bg-[#0a0a0f] flex items-center justify-center text-white">
         <h1 className="text-2xl font-bold">Access denied</h1>
@@ -434,7 +435,14 @@ export default function AdminChatRoomPage() {
             />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold leading-tight truncate">{contact?.name}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold leading-tight truncate">{contact?.name}</h2>
+              {contact?.isUserDeleted && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 shrink-0 font-medium">
+                  Account Deleted
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-400 truncate">
               {isConnected ? contact?.email : "Connecting…"}
             </p>
@@ -604,53 +612,62 @@ export default function AdminChatRoomPage() {
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.08]">
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <div className="flex items-end gap-2">
-            <div className="flex-1 relative">
-              <input
-                ref={fileInputRef}
-                type="file"
-                hidden
-                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
-                onChange={handleFileSelect}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || !!selectedFile}
-                className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed z-10"
-                title="Attach file"
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
-              <input
-                type="text"
-                value={newMessage}
-                onChange={handleTyping}
-                onKeyDown={handleKeyDown}
-                placeholder={selectedFile ? "Add a caption…" : "Type a message…"}
-                className="w-full pl-12 pr-4 py-3 bg-white/[0.06] border border-white/10 rounded-full text-white text-sm placeholder-gray-500 focus:outline-none focus:border-cyan-400/60 focus:bg-white/[0.08] transition-colors"
-              />
-            </div>
-
-            <button
-              onClick={selectedFile ? handleSendFile : handleSend}
-              disabled={
-                selectedFile 
-                  ? (!isConnected || isUploading)
-                  : (!newMessage.trim() || !isConnected)
-              }
-              className="shrink-0 p-3 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 shadow-lg shadow-purple-500/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              {isUploading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Send className="w-5 h-5" />
-              )}
-            </button>
+      {contact?.isUserDeleted ? (
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#14141e]/95 backdrop-blur-xl border-t border-amber-500/30 p-4 text-center">
+          <div className="max-w-3xl mx-auto flex items-center justify-center gap-2 text-amber-300 font-medium text-sm">
+            <span className="text-base">🔒</span>
+            <span>User account deleted — Chat is archived and read-only.</span>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-white/[0.08]">
+          <div className="max-w-3xl mx-auto px-4 py-3">
+            <div className="flex items-end gap-2">
+              <div className="flex-1 relative">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  hidden
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                  onChange={handleFileSelect}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || !!selectedFile}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-gray-400 hover:text-cyan-400 hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed z-10"
+                  title="Attach file"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={handleTyping}
+                  onKeyDown={handleKeyDown}
+                  placeholder={selectedFile ? "Add a caption…" : "Type a message…"}
+                  className="w-full pl-12 pr-4 py-3 bg-white/[0.06] border border-white/10 rounded-full text-white text-sm placeholder-gray-500 focus:outline-none focus:border-cyan-400/60 focus:bg-white/[0.08] transition-colors"
+                />
+              </div>
+
+              <button
+                onClick={selectedFile ? handleSendFile : handleSend}
+                disabled={
+                  selectedFile 
+                    ? (!isConnected || isUploading)
+                    : (!newMessage.trim() || !isConnected)
+                }
+                className="shrink-0 p-3 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 shadow-lg shadow-purple-500/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {viewingFile && (
         <div
