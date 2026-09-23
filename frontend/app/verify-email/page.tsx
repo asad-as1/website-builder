@@ -46,7 +46,8 @@ function VerifyEmailContent() {
           
           const loginResult = await signIn('credentials', {
             email: data.email,
-            password: 'VERIFIED_BY_TOKEN', // Backend will check emailVerified flag
+            password: 'VERIFIED_BY_TOKEN',
+            authToken: data.token,
             redirect: false,
             callbackUrl: '/dashboard',
           });

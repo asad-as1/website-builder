@@ -102,10 +102,19 @@ const verifyEmail = async (token) => {
   }
 
   if (user.emailVerified) {
+    const jwtToken = jwtService.generateToken(user.id);
     return {
       message: "Email already verified.",
       email: user.email,
       alreadyVerified: true,
+      token: jwtToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        role: formatRoleForClient(user.role),
+      },
     };
   }
 
@@ -135,9 +144,9 @@ const verifyEmail = async (token) => {
 };
 
 // ==================== LOGIN ====================
-const login = async ({ email, password }) => {
-  if (!email || !password) {
-    throw new Error("Email and password are required");
+const login = async ({ email, password, authToken }) => {
+  if (!email) {
+    throw new Error("Email is required");
   }
 
   const user = await db.user.findUnique({
@@ -150,6 +159,30 @@ const login = async ({ email, password }) => {
 
   if (!user.isActive) {
     throw new Error("Account deactivated. Contact support.");
+  }
+
+  // ✅ Secure auto-login via verified JWT token (from verify-email flow)
+  if (authToken) {
+    const decoded = jwtService.verifyToken(authToken);
+    if (!decoded || decoded.userId !== user.id) {
+      throw new Error("Invalid or expired session token");
+    }
+
+    const token = jwtService.generateToken(user.id);
+    return {
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        role: formatRoleForClient(user.role),
+      },
+    };
+  }
+
+  if (!password) {
+    throw new Error("Password is required");
   }
 
   if (!user.password) {

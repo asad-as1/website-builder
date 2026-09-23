@@ -23,10 +23,10 @@ const validateRegister = (req, res, next) => {
 };
 
 const validateLogin = (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, authToken } = req.body;
   
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  if (!email || (!password && !authToken)) {
+    return res.status(400).json({ error: 'Email and password (or token) are required' });
   }
   
   next();

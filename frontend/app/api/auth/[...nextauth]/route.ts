@@ -8,7 +8,8 @@ const handler = NextAuth({
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        authToken: { label: "AuthToken", type: "text" },
       },
       async authorize(credentials) {
         try {
@@ -17,7 +18,8 @@ const handler = NextAuth({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: credentials?.email,
-              password: credentials?.password
+              password: credentials?.password,
+              authToken: (credentials as Record<string, unknown> | undefined)?.authToken,
             })
           });
 
