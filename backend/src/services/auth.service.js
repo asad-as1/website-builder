@@ -71,7 +71,10 @@ const register = async ({ email, password, name }, avatarFile = null) => {
     },
   });
 
-  await emailService.sendVerificationEmail(email, verifyToken);
+  // Send verification email in background without blocking response
+  emailService.sendVerificationEmail(email, verifyToken).catch((err) => {
+    console.error("[Auth] Background email send failed:", err?.message || err);
+  });
 
   return {
     message: "User created. Please verify your email.",
@@ -350,7 +353,10 @@ const resendVerification = async (email) => {
     },
   });
 
-  await emailService.sendVerificationEmail(email, newToken);
+  // Send verification email in background without blocking response
+  emailService.sendVerificationEmail(email, newToken).catch((err) => {
+    console.error("[Auth] Background resend email failed:", err?.message || err);
+  });
 
   return { message: "New verification email sent. Check your inbox." };
 };

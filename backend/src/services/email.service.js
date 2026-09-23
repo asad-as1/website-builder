@@ -1,13 +1,66 @@
-const nodemailer = require('nodemailer');
+// ==================== BREVO EMAIL SERVICE (HTTPS PORT 443) ====================
+// Uses Brevo REST API directly so Render.com free tier never blocks ports 465/587
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
+// Helper to ensure production links always point to deployed frontend on Netlify / Render
+const getFrontendUrl = () => {
+  if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes('localhost')) {
+    return process.env.FRONTEND_URL.replace(/\/+$/, '');
+  }
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+    return 'https://genetix-anx.netlify.app';
+  }
+  return (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+};
+
+// Core Brevo HTTP API sender
+const sendBrevoEmail = async ({ to, toName, subject, html, text, replyTo }) => {
+  const apiKey = process.env.BREVO_API_KEY || process.env.SMTP_KEY;
+  if (!apiKey) {
+    console.error('❌ Brevo API key missing (BREVO_API_KEY or SMTP_KEY in .env)');
+    return false;
+  }
+
+  const senderEmail = process.env.EMAIL_USER || 'asadansari905811@gmail.com';
+
+  const payload = {
+    sender: {
+      name: 'Genetix',
+      email: senderEmail,
+    },
+    to: [
+      {
+        email: to,
+        ...(toName ? { name: toName } : {}),
+      },
+    ],
+    subject,
+    htmlContent: html,
+    textContent: text,
+  };
+
+  if (replyTo) {
+    payload.replyTo = { email: replyTo };
+  }
+
+  const response = await fetch(BREVO_API_URL, {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || `Brevo API error: ${response.status}`);
+  }
+
+  return data;
+};
 
 // ==================== BRAND / THEME ====================
 const BRAND = {
@@ -21,7 +74,7 @@ const BRAND = {
   page: '#F4F5F9',
   card: '#FFFFFF',
   supportEmail: process.env.SUPPORT_EMAIL || process.env.EMAIL_USER,
-  website: process.env.FRONTEND_URL || 'http://localhost:3000',
+  website: getFrontendUrl(),
   address: process.env.COMPANY_ADDRESS || '',
 };
 
@@ -144,12 +197,11 @@ const p = (html, extra = '') =>
 
 // ==================== VERIFICATION EMAIL ====================
 const sendVerificationEmail = async (email, token) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const frontendUrl = getFrontendUrl();
   const verifyUrl = `${frontendUrl}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"Genetix" <${process.env.EMAIL_USER}>`,
+    const info = await sendBrevoEmail({
       to: email,
       subject: 'Verify your email address',
       text: `Confirm your email to finish setting up your Genetix account.\n\nOpen this link to verify:\n${verifyUrl}\n\nThe link expires in 24 hours. If you didn't sign up, you can ignore this email.`,
@@ -192,13 +244,14 @@ const sendVerificationEmail = async (email, token) => {
       }),
     });
 
+    console.log(`✅ [Brevo API] Verification email sent to ${email}:`, info?.messageId);
     return true;
   } catch (error) {
+    console.error(`❌ [Brevo API] Verification email failed for ${email}:`, error.message);
     return false;
   }
 };
 
-// ==================== CONTACT EMAIL ====================
 // ==================== CONTACT EMAIL ====================
 const sendContactEmail = async ({ name, email, projectName, changes, budget, priority, attachment }) => {
   try {
@@ -215,7 +268,7 @@ const sendContactEmail = async ({ name, email, projectName, changes, budget, pri
       </tr>
     `;
 
-    // ✅ Attachment section
+    // Attachment section
     const attachmentSection = attachment?.url ? `
       <p style="margin:26px 0 10px;font-family:${FONT};font-size:13px;font-weight:600;line-height:18px;color:${BRAND.muted};">
         Attachment
@@ -235,9 +288,10 @@ const sendContactEmail = async ({ name, email, projectName, changes, budget, pri
       </table>
     ` : '';
 
-    const info = await transporter.sendMail({
-      from: `"Genetix Contact" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
+    const adminEmail = process.env.EMAIL_USER || 'asadansari905811@gmail.com';
+
+    const info = await sendBrevoEmail({
+      to: adminEmail,
       replyTo: email,
       subject: `${priorityEmoji} New Custom Request - ${name}`,
       text: `New custom change request\n\nFrom: ${name} (${email})\nProject: ${
@@ -286,10 +340,11 @@ const sendContactEmail = async ({ name, email, projectName, changes, budget, pri
         footerNote: `Sent automatically from the ${BRAND.name} contact form.`,
       }),
     });
-    console.log(`✅ Contact email sent: ${info.messageId}`);
+
+    console.log(`✅ [Brevo API] Contact email sent:`, info?.messageId);
     return true;
   } catch (error) {
-    console.error('❌ Contact email error:', error.message);
+    console.error('❌ [Brevo API] Contact email error:', error.message);
     return false;
   }
 };
@@ -297,9 +352,9 @@ const sendContactEmail = async ({ name, email, projectName, changes, budget, pri
 // ==================== ADMIN REPLY EMAIL ====================
 const sendAdminReplyEmail = async ({ name, email, changes, adminReply }) => {
   try {
-    const info = await transporter.sendMail({
-      from: `"Genetix" <${process.env.EMAIL_USER}>`,
+    const info = await sendBrevoEmail({
       to: email,
+      toName: name,
       subject: 'Re: Your Custom Change Request - Genetix',
       text: `Hi ${name},\n\nHere's our reply to your request:\n\n${adminReply}\n\n---\nYour original request:\n${changes}\n\nReply to this email to continue the conversation.`,
       html: layout({
@@ -343,10 +398,11 @@ const sendAdminReplyEmail = async ({ name, email, changes, adminReply }) => {
         footerNote: `Replies to this email go straight to our team at ${esc(BRAND.supportEmail || '')}.`,
       }),
     });
-    console.log(`✅ Admin reply email sent: ${info.messageId}`);
+
+    console.log(`✅ [Brevo API] Admin reply email sent:`, info?.messageId);
     return true;
   } catch (error) {
-    console.error('❌ Admin reply email error:', error.message);
+    console.error('❌ [Brevo API] Admin reply email error:', error.message);
     return false;
   }
 };

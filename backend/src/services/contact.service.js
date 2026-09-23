@@ -87,7 +87,8 @@ const submitContact = async (userId, { projectId, changes, budget, priority, att
     },
   });
 
-  await emailService.sendContactEmail({
+  // Send email notification in background
+  emailService.sendContactEmail({
     name: user.name,
     email: user.email,
     projectName,
@@ -95,6 +96,8 @@ const submitContact = async (userId, { projectId, changes, budget, priority, att
     budget,
     priority,
     attachment,
+  }).catch((err) => {
+    console.error('[Contact] Background email error:', err?.message || err);
   });
 
   return contact;
@@ -166,11 +169,14 @@ const adminReply = async (contactId, reply) => {
     },
   });
 
-  await emailService.sendAdminReplyEmail({
+  // Send reply email in background
+  emailService.sendAdminReplyEmail({
     name: contact.name,
     email: contact.email,
     changes: contact.changes,
     adminReply: reply,
+  }).catch((err) => {
+    console.error('[Contact] Background admin reply email error:', err?.message || err);
   });
 
   return updated;
